@@ -17,6 +17,7 @@ const liveRoutes = new Map([
   ['/user-profile/user-profile-enterprise-accounts-section', '/live/enterprise-accounts'],
   ['/user-profile/user-profile-danger-section', '/live/user-danger'],
   ['/organization-profile/organization-profile-danger-section', '/live/organization-danger'],
+  ['/user-profile/user-profile-web3-wallets-section', '/live/web3-wallets'],
   ['/reverification/reverification', '/live/reverification'],
 ]);
 
