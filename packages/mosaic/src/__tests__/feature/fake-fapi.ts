@@ -14,6 +14,7 @@ import { http, HttpResponse, type JsonBodyType } from 'msw';
 import { setupWorker } from 'msw/browser';
 
 import { enterpriseHandlers, type FakeEnterpriseLinking } from './fake-fapi/enterprise';
+import { createMfaState, type FakeMfaState, mfaHandlers } from './fake-fapi/mfa';
 import {
   createVerificationState,
   type FakeVerificationSeed,
@@ -49,6 +50,7 @@ export interface FakeFapiState {
   passwordUpdates: URLSearchParams[];
   enterpriseConnections: EnterpriseConnectionJSON[];
   enterpriseLinking: FakeEnterpriseLinking;
+  mfa: FakeMfaState;
 }
 
 export type FakeFapiSeed = Partial<Omit<FakeFapiState, 'verification' | 'enterpriseLinking'>> & {
@@ -152,6 +154,7 @@ export function serveFapi(seed: FakeFapiSeed = {}): FakeFapiState {
     apiKeys: [],
     passwordUpdates: [],
     enterpriseConnections: [],
+    mfa: createMfaState(),
     ...rest,
     verification: createVerificationState(verification),
     enterpriseLinking: {
@@ -166,6 +169,7 @@ export function serveFapi(seed: FakeFapiSeed = {}): FakeFapiState {
   worker.use(
     ...verificationHandlers(state, fapiUrl),
     ...enterpriseHandlers(state, fapiUrl),
+    ...mfaHandlers(state, fapiUrl),
     http.get(fapiUrl('/v1/environment'), () => HttpResponse.json(state.environment)),
     http.get(fapiUrl('/v1/client'), () => envelope(state.client, null)),
     http.get(fapiUrl('/v1/me'), () => {

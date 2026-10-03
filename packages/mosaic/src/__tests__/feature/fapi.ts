@@ -16,6 +16,7 @@ import type {
   OrganizationMembershipJSON,
   OrganizationSettingsJSON,
   OrganizationSuggestionJSON,
+  PhoneNumberJSON,
   PublicKeyCredentialRequestOptionsJSON,
   PublicOrganizationDataJSON,
   SessionJSON,
@@ -311,6 +312,19 @@ export function fapiUser(overrides: Partial<UserJSON> & Pick<UserJSON, 'id'>): U
     legal_accepted_at: null,
     created_at: createdAt,
     updated_at: createdAt,
+    ...overrides,
+  };
+}
+
+export function fapiPhoneNumber(
+  overrides: Partial<PhoneNumberJSON> & Pick<PhoneNumberJSON, 'id' | 'phone_number'>,
+): PhoneNumberJSON {
+  return {
+    object: 'phone_number',
+    reserved_for_second_factor: false,
+    default_second_factor: false,
+    linked_to: [],
+    verification: fapiVerification('phone_code', { status: 'verified' }),
     ...overrides,
   };
 }
