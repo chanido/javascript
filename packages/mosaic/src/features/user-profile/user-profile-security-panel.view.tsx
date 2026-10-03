@@ -8,6 +8,7 @@ import type {
   UserProfileDevice,
 } from './user-profile-active-devices-section.view';
 import { UserProfileActiveDevicesSectionView } from './user-profile-active-devices-section.view';
+import type { UserProfileMfaSlot } from './user-profile-mfa-section';
 import type { UserProfileMfaAddableMethod, UserProfileMfaMethod } from './user-profile-mfa-section.view';
 import { UserProfileMfaSectionView } from './user-profile-mfa-section.view';
 import type { UserProfilePasskey } from './user-profile-passkeys-section.view';
@@ -18,6 +19,7 @@ export type { UserProfileDevice, UserProfileMfaAddableMethod, UserProfileMfaMeth
 
 export interface UserProfileSecurityPanelViewProps extends Omit<UserProfileActiveDevicesSectionViewProps, 'devices'> {
   passwordSlot?: UserProfilePasswordSlot | null;
+  mfaSlot?: UserProfileMfaSlot | null;
   passkeys?: UserProfilePasskey[];
   passkeysVisible?: boolean;
   mfaMethods?: UserProfileMfaMethod[];
@@ -38,6 +40,7 @@ export interface UserProfileSecurityPanelViewProps extends Omit<UserProfileActiv
 
 export function UserProfileSecurityPanelView({
   passwordSlot,
+  mfaSlot,
   passkeys,
   passkeysVisible = true,
   mfaMethods,
@@ -58,7 +61,8 @@ export function UserProfileSecurityPanelView({
 }: UserProfileSecurityPanelViewProps): ReactElement {
   const showPassword = Boolean(passwordSlot);
   const showPasskeys = passkeys !== undefined && passkeysVisible;
-  const hasAuthentication = showPassword || showPasskeys || mfaMethods !== undefined;
+  const hasAuthentication =
+    showPassword || showPasskeys || (mfaSlot !== undefined ? Boolean(mfaSlot) : mfaMethods !== undefined);
 
   return (
     <Panel.Root render={<div {...themeProps('user-profile-security-panel')} />}>
@@ -76,7 +80,8 @@ export function UserProfileSecurityPanelView({
                 onRemove={onRemovePasskey}
               />
             ) : null}
-            {mfaMethods !== undefined ? (
+            {mfaSlot?.content}
+            {mfaSlot === undefined && mfaMethods !== undefined ? (
               <UserProfileMfaSectionView
                 methods={mfaMethods}
                 addableMethods={addableMfaMethods}
