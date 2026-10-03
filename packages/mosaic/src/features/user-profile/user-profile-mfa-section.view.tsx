@@ -1,25 +1,16 @@
-import { type ReactNode, type Ref, useMemo, useRef, useState } from 'react';
+import { type ReactNode, type Ref } from 'react';
 
 import { Confirmation } from '../../blocks/confirmation';
 import { Section } from '../../components/section';
-import { useListRemovalFocus } from '../../hooks/use-list-removal-focus';
 import { fill, type MosaicMessages, useMessages } from '../../localization';
 import { UserProfileAddMfaDialog } from './user-profile-add-mfa.dialog';
 import { UserProfileAddMfaView } from './user-profile-add-mfa.view';
 import { UserProfileMfaRowView } from './user-profile-mfa-row.view';
+import type { UserProfileMfaAddableMethod, UserProfileMfaMethod } from './user-profile-mfa-section.types';
+import { useUserProfileMfaSectionLeafController } from './user-profile-mfa-section-leaf.controller';
 import { UserProfileSecurityList } from './user-profile-security-list';
 
-export interface UserProfileMfaMethod {
-  id: string;
-  type: 'sms' | 'authenticator' | 'backup-codes';
-  label?: string;
-  description?: string;
-  isDefault?: boolean;
-  canRemove?: boolean;
-  canSetDefault?: boolean;
-}
-
-export type UserProfileMfaAddableMethod = 'sms' | 'authenticator' | 'backup-codes';
+export type { UserProfileMfaAddableMethod, UserProfileMfaMethod } from './user-profile-mfa-section.types';
 
 export interface UserProfileMfaSectionViewProps {
   methods: UserProfileMfaMethod[];
@@ -43,59 +34,25 @@ export function UserProfileMfaSectionView({
   onSetDefault,
 }: UserProfileMfaSectionViewProps) {
   const m = useMessages('userProfileMfa');
-  const section = useRef<HTMLDivElement>(null);
-  const removalFocus = useListRemovalFocus({
-    ids: methods.map(method => method.id),
-    onRemove,
-    fallback: () => section.current?.querySelector<HTMLButtonElement>('button:not([disabled])') ?? section.current,
-  });
-  const removeMethod = useMemo(() => Confirmation.createHandle<UserProfileMfaMethod>(), []);
-  const [pickerOpen, setPickerOpen] = useState(false);
-  const [isSettingDefault, setIsSettingDefault] = useState(false);
-  const [defaultError, setDefaultError] = useState<string>();
-  const settingDefault = useRef(false);
-
-  const setDefault = async (id: string) => {
-    const method = methods.find(method => method.id === id);
-    if (
-      !onSetDefault ||
-      method?.type !== 'sms' ||
-      !method.canSetDefault ||
-      method.isDefault ||
-      settingDefault.current
-    ) {
-      return;
-    }
-    settingDefault.current = true;
-    setIsSettingDefault(true);
-    setDefaultError(undefined);
-    try {
-      await onSetDefault(id);
-    } catch (error) {
-      setDefaultError(error instanceof Error ? error.message : m.setDefaultError);
-    } finally {
-      settingDefault.current = false;
-      setIsSettingDefault(false);
-    }
-  };
+  const controller = useUserProfileMfaSectionLeafController({ methods, onRemove, onSetDefault });
 
   return (
     <>
       <UserProfileSecurityList
-        sectionRef={section}
+        sectionRef={controller.sectionRef}
         addControl={
           addControl ??
           (onAdd && addableMethods?.length ? (
             <UserProfileAddMfaDialog
               triggerRef={addButtonRef}
-              open={pickerOpen}
-              onOpenChange={setPickerOpen}
+              open={controller.pickerOpen}
+              onOpenChange={controller.onPickerOpenChange}
             >
               <UserProfileAddMfaView
                 methods={addableMethods}
                 onSelect={type => {
                   onAdd(type);
-                  setPickerOpen(false);
+                  controller.closePicker();
                 }}
               />
             </UserProfileAddMfaDialog>
@@ -110,22 +67,27 @@ export function UserProfileMfaSectionView({
           <UserProfileMfaRowView
             key={method.id}
             method={method}
-            triggerRef={removalFocus.registerTrigger(method.id)}
-            onRemove={onRemove ? () => removeMethod.open(method) : undefined}
-            onSetDefault={onSetDefault && !isSettingDefault ? id => void setDefault(id) : undefined}
+            triggerRef={controller.registerTrigger(method.id)}
+            onRemove={onRemove ? () => controller.openRemoval(method) : undefined}
+            onSetDefault={
+              onSetDefault && !controller.isSettingDefault ? id => void controller.setDefault(id) : undefined
+            }
             onRegenerateBackupCodes={onRegenerateBackupCodes}
           />
         ))}
       </UserProfileSecurityList>
-      <Section.Error>{defaultError}</Section.Error>
-      {onRemove ? (
+      <Section.Error>{controller.defaultError}</Section.Error>
+      {onRemove && controller.removal ? (
         <Confirmation
-          handle={removeMethod}
-          title={method => (method.type === 'sms' ? m.removeDialog.smsTitle : m.removeDialog.authenticatorTitle)}
-          description={method => describeMethodRemoval(method, m)}
+          open
+          onOpenChange={controller.onRemovalOpenChange}
+          title={controller.removal.method.type === 'sms' ? m.removeDialog.smsTitle : m.removeDialog.authenticatorTitle}
+          description={describeMethodRemoval(controller.removal.method, m)}
           actionLabel={m.removeDialog.confirm}
-          finalFocus={removalFocus.finalFocus}
-          onConfirm={method => removalFocus.remove(method.id)}
+          finalFocus={controller.finalRemovalFocus}
+          onConfirm={controller.confirmRemoval}
+          isConfirming={controller.removal.status === 'pending'}
+          errorMessage={controller.removal.error}
         />
       ) : null}
     </>
