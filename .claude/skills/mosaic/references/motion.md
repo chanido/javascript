@@ -344,6 +344,11 @@ the recipe for a `<ul>` whose rows come and go. What differs from the banner:
   row is collapsing at the same time. Keep the hook's inline `transition: none` off
   the slot, and apply the `@starting-style` variant only to rows mounted after the
   list's first render, or the list expands from nothing on load.
+- **The track waits out the dialog.** A row is added or removed by a dialog that is
+  still animating out when the data lands, and a track that starts at the same moment
+  is lost behind it. The slot's transition carries a `base` delay both ways (the
+  dialog exits at `fast`, its phone sheet at `base`), and the content's own delays
+  are offset by the same amount so they stay relative to the track.
 - **One duration and one curve both ways**: `--cl-duration-slower` on
   `--cl-ease-in-out`. A list can collapse one row while another expands, and the
   card's height is the sum of the tracks, so the two must be mirror images every
@@ -372,11 +377,14 @@ with `scale(0.9 → 1)` on `--cl-ease-default`, `fast` out on `--cl-ease-exit`),
 rather than moving rows past each other. A reorder was built and dropped: a row
 that collapses in one place and expands in another reads as a swap, not travel.
 
-**A pending request pulses the live rows.** A set-primary request marks its row
-busy at once; once it outlasts `useSpinDelay`'s 150ms, every row's content takes
-`skeletonStyles.wave` with a `useSkeletonWave` ref, so the rows ride the same wave
-as a loading skeleton would, and the badge change is held until the pulse has shown
-for its 400ms minimum.
+**A pending request shows where its outcome will land.** A set-primary request marks
+its row busy at once; once it outlasts `useSpinDelay`'s 150ms, a small `Spinner`
+(`role='progressbar'`, named) fades in beside the value, in the spot the badge will
+take, and the badge change is held until the spinner has shown for its 400ms
+minimum. The old badge then exits at `fast` and the new one enters after a `fast`
+delay, so the two never cross; the spinner leaves with the old badge. A page-wide
+pulse on the live rows was tried first and dropped: it read as the list reloading,
+not as one row changing.
 
 ## Color and state changes (hover, press)
 

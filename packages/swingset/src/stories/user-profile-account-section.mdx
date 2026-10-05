@@ -56,12 +56,12 @@ action. The connection's logo leads the label, or a generic lock when it ships n
 A new email address or phone number expands into the list and a removed one collapses out of it,
 each fading at its bottom edge. The list keeps the order it was first shown in, so setting a primary
 moves the badge between rows rather than the rows themselves. **Set as primary** resolves after a
-short simulated request; when the request outlasts a short delay, the rows pulse in the shared
-loading wave and the badge waits for the pulse to end.
+short simulated request; when the request outlasts a short delay, a spinner shows where the badge
+will land, and the badge waits for the spinner to go.
 
 ## Set primary pending
 
-Setting a primary takes a few seconds here, so the pending wave is easy to see.
+Setting a primary takes a few seconds here, so the pending spinner is easy to see.
 
 <Story name='SetPrimaryPending' storyModule={Stories} />
 

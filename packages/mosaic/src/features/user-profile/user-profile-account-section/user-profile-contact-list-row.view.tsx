@@ -9,11 +9,10 @@ import { Badge } from '../../../components/badge';
 import { Button } from '../../../components/button';
 import { Icon } from '../../../components/icon';
 import { Section } from '../../../components/section';
-import { useSkeletonWave } from '../../../hooks/use-skeleton-wave';
+import { Spinner } from '../../../components/spinner';
 import { fill, useMessages } from '../../../localization';
 import { usePresenceList, useTransition } from '../../../primitives/hooks';
 import { reset } from '../../../styles/reset.styles';
-import { skeletonStyles } from '../../../styles/skeleton.styles';
 import { truncationStyles } from '../../../styles/typography.styles';
 import { styles as panelStyles } from '../user-profile-profile-panel.styles';
 import { contactItemMarker, contactSlotMarker } from './user-profile-account-section.markers.stylex';
@@ -32,8 +31,8 @@ export interface UserProfileContactListRowViewProps {
   onRemove?: (id: string) => void;
   /** The item whose set-primary request is in flight; it announces busy. */
   pendingId?: string;
-  /** Pulses every row in a wave, for a request that has outlasted a short delay. */
-  pulsing?: boolean;
+  /** The item that shows the pending indicator: the request has outlasted a short delay, and the indicator is held for its minimum. */
+  shownPendingId?: string;
   children?: ReactNode;
 }
 
@@ -51,7 +50,7 @@ function PrimaryBadge({ open, children }: { open: boolean; children: ReactNode }
     <Badge
       ref={element}
       color='neutral'
-      xstyle={styles.primaryBadge}
+      xstyle={styles.badgeSlotItem}
       {...transitionProps}
     >
       {children}
@@ -59,11 +58,31 @@ function PrimaryBadge({ open, children }: { open: boolean; children: ReactNode }
   );
 }
 
+function PendingIndicator({ open, label }: { open: boolean; label: string }) {
+  const element = useRef<HTMLSpanElement>(null);
+  const { mounted, transitionProps } = useTransition({ open, ref: element });
+
+  if (!mounted) {
+    return null;
+  }
+
+  return (
+    <Spinner
+      ref={element}
+      role='progressbar'
+      aria-hidden={undefined}
+      aria-label={label}
+      size='sm'
+      xstyle={styles.badgeSlotItem}
+      {...transitionProps}
+    />
+  );
+}
+
 function ContactListItem({
   present = true,
   appear = true,
   pending = false,
-  pulsing = false,
   onExited,
   actions,
   children,
@@ -71,14 +90,12 @@ function ContactListItem({
   present?: boolean;
   appear?: boolean;
   pending?: boolean;
-  pulsing?: boolean;
   onExited?: () => void;
   actions?: ReactNode;
   children: ReactNode;
 }) {
   const element = useRef<HTMLLIElement>(null);
   const { mounted, transitionProps } = useTransition({ open: present, ref: element });
-  const wave = useSkeletonWave<HTMLDivElement>(pulsing);
 
   useEffect(() => {
     if (!mounted) {
@@ -109,12 +126,7 @@ function ContactListItem({
           xstyle={[styles.contactItem, contactItemMarker]}
           {...transitionProps}
         >
-          <Section.Content
-            ref={wave}
-            xstyle={[styles.contactFade, skeletonStyles.wave]}
-          >
-            {children}
-          </Section.Content>
+          <Section.Content xstyle={styles.contactFade}>{children}</Section.Content>
           {actions ? <Section.Actions xstyle={styles.contactFade}>{actions}</Section.Actions> : null}
         </Section.Item>
       </div>
@@ -131,7 +143,7 @@ export function UserProfileContactListRowView({
   onSetPrimary,
   onRemove,
   pendingId,
-  pulsing = false,
+  shownPendingId,
   addAction,
   rowRef,
   triggerRef,
@@ -201,7 +213,6 @@ export function UserProfileContactListRowView({
                 present={present}
                 appear={settled.current}
                 pending={pendingId === item.id}
-                pulsing={pulsing}
                 onExited={onExited}
                 actions={
                   actions.length > 0 ? (
@@ -215,7 +226,13 @@ export function UserProfileContactListRowView({
               >
                 <Section.Description xstyle={panelStyles.contactValue}>
                   <span {...stylex.props(truncationStyles.singleLine, panelStyles.contactText)}>{item.value}</span>
-                  <PrimaryBadge open={item.isDefault === true}>{m.primary}</PrimaryBadge>
+                  <span {...stylex.props(styles.badgeSlot)}>
+                    <PrimaryBadge open={item.isDefault === true}>{m.primary}</PrimaryBadge>
+                    <PendingIndicator
+                      open={shownPendingId === item.id}
+                      label={m.settingPrimary}
+                    />
+                  </span>
                 </Section.Description>
               </ContactListItem>
             );

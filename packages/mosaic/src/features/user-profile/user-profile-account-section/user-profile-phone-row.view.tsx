@@ -47,12 +47,13 @@ export function UserProfilePhoneRowView({
   );
   const orderedPhones = useStableOrder(formattedPhones, byId);
   const [pendingPrimaryId, setPendingPrimaryId] = useState<string>();
-  const pulsing = useSpinDelay(pendingPrimaryId ?? null) !== null;
+  const shownPendingId = useSpinDelay(pendingPrimaryId ?? null) ?? undefined;
+  const showPending = shownPendingId !== undefined;
   const [heldPhones, setHeldPhones] = useState(orderedPhones);
-  if (!pulsing && heldPhones !== orderedPhones) {
+  if (!showPending && heldPhones !== orderedPhones) {
     setHeldPhones(orderedPhones);
   }
-  const shownPhones = pulsing ? heldPhones : orderedPhones;
+  const shownPhones = showPending ? heldPhones : orderedPhones;
   const removalFocus = useListRemovalFocus({
     ids: shownPhones.map(phone => phone.id),
     onRemove: onRemovePhone,
@@ -118,9 +119,11 @@ export function UserProfilePhoneRowView({
         label={m.phone.label}
         addAction={addPhoneAction}
         onRemove={onRemovePhone ? removePhone : undefined}
-        onSetPrimary={onSetPrimaryPhone && !pendingPrimaryId && !pulsing ? id => void setPrimaryPhone(id) : undefined}
+        onSetPrimary={
+          onSetPrimaryPhone && !pendingPrimaryId && !showPending ? id => void setPrimaryPhone(id) : undefined
+        }
         pendingId={pendingPrimaryId}
-        pulsing={pulsing}
+        shownPendingId={shownPendingId}
         onVerify={onVerifyPhone}
       >
         <Section.Error>{primaryError}</Section.Error>

@@ -44,7 +44,7 @@ describe('email actions', () => {
     expect(row).not.toHaveAttribute('data-pending');
   });
 
-  it('keeps the list order when the primary changes, and holds the badge while the pulse shows', async () => {
+  it('keeps the list order when the primary changes, and holds the badge while the spinner shows', async () => {
     const user = userEvent.setup();
     const order = () =>
       screen.getAllByRole('button', { name: /^Manage / }).map(button => button.getAttribute('aria-label'));
@@ -81,6 +81,9 @@ describe('email actions', () => {
 
     await act(() => new Promise(resolve => setTimeout(resolve, 250)));
     expect(primary()).toContain('first@example.com');
+    expect(
+      screen.getByRole('progressbar', { name: 'Setting as primary' }).closest('.cl-section-item'),
+    ).toHaveTextContent('second@example.com');
 
     await waitFor(() => expect(primary()).toContain('second@example.com'), { timeout: 1500 });
     expect(order()).toEqual(['Manage first@example.com', 'Manage second@example.com']);

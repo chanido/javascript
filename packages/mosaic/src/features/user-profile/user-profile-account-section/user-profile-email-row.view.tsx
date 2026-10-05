@@ -44,12 +44,13 @@ export function UserProfileEmailRowView({
   const row = useRef<HTMLDivElement>(null);
   const orderedEmails = useStableOrder(emails, byId);
   const [pendingPrimaryId, setPendingPrimaryId] = useState<string>();
-  const pulsing = useSpinDelay(pendingPrimaryId ?? null) !== null;
+  const shownPendingId = useSpinDelay(pendingPrimaryId ?? null) ?? undefined;
+  const showPending = shownPendingId !== undefined;
   const [heldEmails, setHeldEmails] = useState(orderedEmails);
-  if (!pulsing && heldEmails !== orderedEmails) {
+  if (!showPending && heldEmails !== orderedEmails) {
     setHeldEmails(orderedEmails);
   }
-  const shownEmails = pulsing ? heldEmails : orderedEmails;
+  const shownEmails = showPending ? heldEmails : orderedEmails;
   const removalFocus = useListRemovalFocus({
     ids: shownEmails.map(email => email.id),
     onRemove: onRemoveEmail,
@@ -133,9 +134,11 @@ export function UserProfileEmailRowView({
         label={m.email.label}
         addAction={addEmailAction}
         onRemove={onRemoveEmail ? removeEmail : undefined}
-        onSetPrimary={onSetPrimaryEmail && !pendingPrimaryId && !pulsing ? id => void setPrimaryEmail(id) : undefined}
+        onSetPrimary={
+          onSetPrimaryEmail && !pendingPrimaryId && !showPending ? id => void setPrimaryEmail(id) : undefined
+        }
         pendingId={pendingPrimaryId}
-        pulsing={pulsing}
+        shownPendingId={shownPendingId}
         onVerify={onVerifyEmail}
       >
         <Section.Error>{primaryError}</Section.Error>

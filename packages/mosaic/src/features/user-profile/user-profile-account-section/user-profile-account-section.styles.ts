@@ -13,6 +13,7 @@ export const styles = stylex.create({
       default: '1fr',
       ':where([data-ending-style])': '0fr',
     },
+    transitionDelay: durationVars['--cl-duration-base'],
     transitionDuration: durationVars['--cl-duration-slower'],
     transitionProperty: {
       default: 'grid-template-rows',
@@ -61,8 +62,8 @@ export const styles = stylex.create({
     },
     transformOrigin: 'left',
     transitionDelay: {
-      default: durationVars['--cl-duration-slow'],
-      [stylex.when.ancestor(':where([data-ending-style])', contactItemMarker)]: durationVars['--cl-duration-instant'],
+      default: `calc(${durationVars['--cl-duration-base']} + ${durationVars['--cl-duration-slow']})`,
+      [stylex.when.ancestor(':where([data-ending-style])', contactItemMarker)]: durationVars['--cl-duration-base'],
     },
     transitionDuration: {
       default: durationVars['--cl-duration-base'],
@@ -77,26 +78,45 @@ export const styles = stylex.create({
       [stylex.when.ancestor(':where([data-ending-style])', contactItemMarker)]: easingVars['--cl-ease-exit'],
     },
   },
-  primaryBadge: {
-    opacity: { default: 1, ':where([data-starting-style], [data-ending-style])': 0 },
-    transform: {
-      default: 'scale(1)',
-      ':where([data-starting-style], [data-ending-style])': 'scale(0.9)',
+  badgeSlot: {
+    alignItems: 'center',
+    display: { default: 'grid', ':empty': 'none' },
+    justifyItems: 'start',
+  },
+  badgeSlotItem: {
+    filter: {
+      default: 'blur(0)',
+      ':where([data-starting-style], [data-ending-style])': 'blur(2px)',
       '@media (prefers-reduced-motion: reduce)': {
-        default: 'scale(1)',
-        ':where([data-starting-style], [data-ending-style])': 'scale(1)',
+        default: 'blur(0)',
+        ':where([data-starting-style], [data-ending-style])': 'blur(0)',
       },
+    },
+    gridColumnStart: '1',
+    gridRowStart: '1',
+    opacity: { default: 1, ':where([data-starting-style], [data-ending-style])': 0 },
+    scale: {
+      default: 1,
+      ':where([data-starting-style], [data-ending-style])': 0.9,
+      '@media (prefers-reduced-motion: reduce)': {
+        default: 1,
+        ':where([data-starting-style], [data-ending-style])': 1,
+      },
+    },
+    transitionDelay: {
+      default: durationVars['--cl-duration-fast'],
+      ':where([data-ending-style])': durationVars['--cl-duration-instant'],
     },
     transitionDuration: {
       default: durationVars['--cl-duration-base'],
       ':where([data-ending-style])': durationVars['--cl-duration-fast'],
     },
     transitionProperty: {
-      default: 'opacity, transform',
+      default: 'opacity, scale, filter',
       '@media (prefers-reduced-motion: reduce)': 'opacity',
     },
     transitionTimingFunction: {
-      default: `${easingVars['--cl-ease-enter']}, ${easingVars['--cl-ease-default']}`,
+      default: `${easingVars['--cl-ease-enter']}, ${easingVars['--cl-ease-default']}, ${easingVars['--cl-ease-enter']}`,
       ':where([data-ending-style])': easingVars['--cl-ease-exit'],
     },
   },
