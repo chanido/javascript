@@ -390,6 +390,62 @@ pushed 75% past the edge it travels through, so it swings rather than slides. A 
 pulse on the live rows was tried first and dropped: it read as the list reloading,
 not as one row changing.
 
+## Small elements: pills, badges, indicators
+
+The reference is the Primary badge and its pending spinner on the contact rows
+(`user-profile-contact-list-row.view.tsx`, `badgeSlotItem`). The tag input's tags
+should adopt the same recipe. Everything here is tuned on a ~20px pill; the numbers
+do not scale up to surfaces.
+
+**The base transition is the ordinary one.** `base` in with opacity on
+`--cl-ease-enter` and `scale(0.9 → 1)` on `--cl-ease-default`; `fast` out with both
+on `--cl-ease-exit`. Use the individual `scale` property, not `transform`: a spinner
+rotates through a `transform` keyframe, and a `transform: scale()` on the same element
+would be overridden by it. The two compose.
+
+**A slight blur, `blur(1px)`, at both ends.** Add `filter` to the transition list,
+on `--cl-ease-enter` in and `--cl-ease-exit` out, and drop it to `blur(0)` under
+reduced motion with the scale. It reads as the pill resolving into place rather than
+switching on. 2px was tried and was too much on a pill: the text smeared for most of
+the fade. The rule of thumb is the blur radius is about a tenth of the element's
+height, floored at a pixel.
+
+**Replacing one with another: exit first, then enter.** When a badge moves from one
+row to another, or a spinner gives way to a badge, give the entering element a
+`transition-delay` equal to the leaving one's exit duration (`fast`), with the delay
+dropped on the exit branch. The two then never cross and the eye reads one thing
+leaving and another arriving. Without the delay they overlap mid-fade and read as a
+flicker.
+
+**Put the two in one cell so neither shifts the other.** A `display: grid` wrapper
+with both children at `grid-area: 1 / 1`, start-aligned, and `:empty { display: none }`
+so an empty slot adds no gap to the flex row around it. The wrapper's width follows
+whichever child is widest, which is the only layout change, and it happens at the
+end of the text where nothing follows.
+
+**Direction, when the element travels between places.** A quarter rem of `translate`
+along the move: the leaving element exits toward where the new one appears, the
+arriving one enters from where the old one was. Push the scale's `transform-origin`
+75% past the edge it travels through (`50% -75%` coming from above, `50% 175%` from
+below), so the scale adds a small arc in the same direction and the pill swings in
+rather than sliding. Half a rem and an origin 180% out were tried first and read as
+dramatic for something this size. Set the direction through custom properties from a
+dynamic style, and key the origin on `data-open` / `data-closed` rather than the
+starting and ending attributes, since it has to hold for the whole transition.
+
+**A pending state shows where its outcome will land.** Mark the container busy at
+once, and once the request outlasts `useSpinDelay`'s threshold, fade a small named
+`Spinner` (`role='progressbar'`) into the slot the result will take. Hold the result
+until the spinner has shown for its minimum, then let the spinner leave with the old
+state and the new state arrive after its `fast` delay. A page-wide pulse on the
+surrounding rows was tried first and dropped: it read as the list reloading, not as
+one thing changing.
+
+**Delays inside something that is itself delayed.** When the pill sits in a row that
+waits before it moves (see "Rows in a list"), its own delays are relative to the
+row's start, so add the row's delay to them. Otherwise the pill fades in while its
+row is still closed and the content arrives before there is room for it.
+
 ## Color and state changes (hover, press)
 
 A state change on an element that is already there and stays there — background,
