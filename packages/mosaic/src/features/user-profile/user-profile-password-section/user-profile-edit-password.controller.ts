@@ -42,7 +42,7 @@ export function useUserProfileEditPasswordController({
   validatePassword,
 }: UserProfileEditPasswordControllerOptions): UserProfileEditPasswordController {
   const hasPassword = policy.mode === 'change';
-  const requiresCurrentPassword = policy.mode === 'change' && policy.requiresCurrentPassword;
+  const requiresCurrentPassword = policy.requiresCurrentPassword;
   const validationError = useMessages('errors').generic;
   const m = useMessages('userProfilePasswordSection');
   const [isOpen, setIsOpen] = useState(false);
