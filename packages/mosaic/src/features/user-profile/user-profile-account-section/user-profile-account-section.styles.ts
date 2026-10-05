@@ -1,6 +1,6 @@
 import * as stylex from '@stylexjs/stylex';
 
-import { durationVars, easingVars, space } from '../../../tokens.stylex';
+import { durationVars, easingVars, focusVars, space } from '../../../tokens.stylex';
 import { contactItemMarker, contactSlotMarker } from './user-profile-account-section.markers.stylex';
 
 export const styles = stylex.create({
@@ -29,7 +29,9 @@ export const styles = stylex.create({
     },
   },
   contactClip: {
+    marginInline: `calc(-1 * (${focusVars['--cl-focus-outline-width']} + ${focusVars['--cl-focus-outline-offset']}))`,
     overflow: 'clip',
+    paddingInline: `calc(${focusVars['--cl-focus-outline-width']} + ${focusVars['--cl-focus-outline-offset']})`,
     alignContent: 'start',
     display: 'grid',
     gridRowEnd: 'span 2',
@@ -86,7 +88,7 @@ export const styles = stylex.create({
   badgeSlotItem: {
     filter: {
       default: 'blur(0)',
-      ':where([data-starting-style], [data-ending-style])': 'blur(2px)',
+      ':where([data-starting-style], [data-ending-style])': 'blur(1px)',
       '@media (prefers-reduced-motion: reduce)': {
         default: 'blur(0)',
         ':where([data-starting-style], [data-ending-style])': 'blur(0)',
@@ -103,6 +105,11 @@ export const styles = stylex.create({
         ':where([data-starting-style], [data-ending-style])': 1,
       },
     },
+    transformOrigin: {
+      default: 'center',
+      ':where([data-closed])': 'var(--_cl-badge-origin-out, center)',
+      ':where([data-open])': 'var(--_cl-badge-origin-in, center)',
+    },
     transitionDelay: {
       default: durationVars['--cl-duration-fast'],
       ':where([data-ending-style])': durationVars['--cl-duration-instant'],
@@ -112,12 +119,29 @@ export const styles = stylex.create({
       ':where([data-ending-style])': durationVars['--cl-duration-fast'],
     },
     transitionProperty: {
-      default: 'opacity, scale, filter',
+      default: 'opacity, scale, filter, translate',
       '@media (prefers-reduced-motion: reduce)': 'opacity',
     },
     transitionTimingFunction: {
-      default: `${easingVars['--cl-ease-enter']}, ${easingVars['--cl-ease-default']}, ${easingVars['--cl-ease-enter']}`,
+      default: `${easingVars['--cl-ease-enter']}, ${easingVars['--cl-ease-default']}, ${easingVars['--cl-ease-enter']}, ${easingVars['--cl-ease-default']}`,
       ':where([data-ending-style])': easingVars['--cl-ease-exit'],
     },
+    translate: {
+      default: '0 0',
+      ':where([data-ending-style])': '0 var(--_cl-badge-shift, 0px)',
+      ':where([data-starting-style])': '0 calc(-1 * var(--_cl-badge-shift, 0px))',
+      '@media (prefers-reduced-motion: reduce)': {
+        default: '0 0',
+        ':where([data-starting-style], [data-ending-style])': '0 0',
+      },
+    },
   },
+});
+
+export const badgeShift = stylex.create({
+  along: (direction: number) => ({
+    '--_cl-badge-origin-in': direction > 0 ? '50% -75%' : direction < 0 ? '50% 175%' : 'center',
+    '--_cl-badge-origin-out': direction > 0 ? '50% 175%' : direction < 0 ? '50% -75%' : 'center',
+    '--_cl-badge-shift': `${direction * 0.25}rem`,
+  }),
 });

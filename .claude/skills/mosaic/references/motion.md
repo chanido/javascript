@@ -382,7 +382,11 @@ its row busy at once; once it outlasts `useSpinDelay`'s 150ms, a small `Spinner`
 (`role='progressbar'`, named) fades in beside the value, in the spot the badge will
 take, and the badge change is held until the spinner has shown for its 400ms
 minimum. The old badge then exits at `fast` and the new one enters after a `fast`
-delay, so the two never cross; the spinner leaves with the old badge. A page-wide
+delay, so the two never cross; the spinner leaves with the old badge. Both share one
+transition (opacity, `scale(0.9 → 1)`, `blur(1px → 0)`) in one grid cell, so neither
+shifts the other. The badge also carries the direction of the move: a quarter rem of
+`translate` toward the row it leaves for or arrives from, with the scale's origin
+pushed 75% past the edge it travels through, so it swings rather than slides. A page-wide
 pulse on the live rows was tried first and dropped: it read as the list reloading,
 not as one row changing.
 
