@@ -1,5 +1,11 @@
 # Change Log
 
+## 4.8.2
+
+### Patch Changes
+
+- Bump the bundled `clerk-ios` SDK from `1.5.8` to `1.5.9`. See the Clerk iOS release: https://github.com/clerk/clerk-ios/releases/tag/1.5.9. ([#10083](https://github.com/clerk/javascript/pull/10083)) by [@clerk-cookie](https://github.com/clerk-cookie)
+
 ## 4.8.1
 
 ### Patch Changes

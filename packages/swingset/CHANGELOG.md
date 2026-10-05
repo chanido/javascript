@@ -1,5 +1,12 @@
 # @clerk/swingset
 
+## 0.0.55
+
+### Patch Changes
+
+- Updated dependencies [[`55a1d5b`](https://github.com/clerk/javascript/commit/55a1d5b6a27651e710c99b9da10f293a6c5ca62f)]:
+  - @clerk/mosaic@0.1.7
+
 ## 0.0.54
 
 ### Patch Changes

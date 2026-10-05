@@ -1,5 +1,11 @@
 # @clerk/mosaic
 
+## 0.1.7
+
+### Patch Changes
+
+- Rename the `userButton.workspaces` localization keys to `userButton.organizations`. Update any overrides of `userButton.workspaces.*` to use `userButton.organizations.*`. ([#10072](https://github.com/clerk/javascript/pull/10072)) by [@alexcarpenter](https://github.com/alexcarpenter)
+
 ## 0.1.6
 
 ### Patch Changes
