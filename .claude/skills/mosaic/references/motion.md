@@ -329,6 +329,55 @@ nothing. The surface keeps its fade and pins the scale (inline text has none to 
 and its entrance delay goes to `instant` as well: it exists to wait for the row, and
 a row that has snapped open leaves nothing to wait for.
 
+### Rows in a list
+
+The contact rows in the user profile (`user-profile-contact-list-row.view.tsx`) adopt
+the recipe for a `<ul>` whose rows come and go. What differs from the banner:
+
+- **The slot is the `<li>`.** `grid-template-rows` on the list item, the clip layer
+  inside it (`grid-row: 1 / span 2`, `min-height: 0`, no padding), and the real row
+  rendered as a `div` through `Section.Item`'s `render`. `usePresenceList` keeps a
+  removed row mounted, in place and `inert`, until its collapse ends.
+- **The entering track starts from `@starting-style`**, not `data-starting-style`
+  (StyleX 0.19 compiles the key). The attribute is released from a passive effect a
+  frame after commit, and a track that starts a frame late is visible when another
+  row is collapsing at the same time. Keep the hook's inline `transition: none` off
+  the slot, and apply the `@starting-style` variant only to rows mounted after the
+  list's first render, or the list expands from nothing on load.
+- **One duration and one curve both ways**: `--cl-duration-slower` on
+  `--cl-ease-in-out`. A list can collapse one row while another expands, and the
+  card's height is the sum of the tracks, so the two must be mirror images every
+  frame. The banner's split (`--cl-ease-enter` open, in-out close) is for a single
+  row that never overlaps another.
+- **Anchored to the start, faded at the bottom.** The row's top border is the list's
+  separator, so the content sits at the top of the clip and the border is there from
+  the first frame to the last in both directions; the moving edge is the bottom one,
+  under a static `mask-image` the height of the row's bottom padding, so at rest it
+  touches nothing. The border rule is the slot's own (`:first-child` has none), since
+  `Section.Item`'s sibling-marker rule cannot see across the slots.
+- **Content fade and scale live on the row's children** (a marker on the row,
+  `stylex.when.ancestor` on `Section.Content` and `Section.Actions`), never on the
+  row itself: opacity on the row would fade its border too. Timing is the recipe's:
+  enter after `slow`, at `base`; exit at once, at `fast`.
+- **Reduced motion is a cut in one commit.** Every transition off, every value at
+  rest, and the slot `display: none` as soon as it carries `data-closed`. Without
+  that rule the incoming row mounts a commit before the outgoing one is unmounted and
+  both show for a frame.
+
+**Rows do not reorder.** While the list is mounted it keeps the order it was first
+shown in (`useStableOrder`): a new row is appended, a removed row drops out, and a
+row the model now sorts elsewhere stays put. Setting a primary therefore moves the
+badge, which enters and exits on the ordinary rules (`base` in on `--cl-ease-enter`
+with `scale(0.9 → 1)` on `--cl-ease-default`, `fast` out on `--cl-ease-exit`),
+rather than moving rows past each other. A reorder was built and dropped: a row
+that collapses in one place and expands in another reads as a swap, not travel.
+
+**A pending request pulses the live rows.** A set-primary request marks its row
+busy at once; once it outlasts `useSpinDelay`'s 150ms, every row's content takes
+`skeletonStyles.wave` with a `useSkeletonWave` ref, so the rows ride the same wave
+as a loading skeleton would, and the badge change is held until the pulse has shown
+for its 400ms minimum.
+
 ## Color and state changes (hover, press)
 
 A state change on an element that is already there and stays there — background,

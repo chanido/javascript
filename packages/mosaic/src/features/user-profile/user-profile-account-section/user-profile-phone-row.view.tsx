@@ -6,13 +6,17 @@ import { Button } from '../../../components/button';
 import { Icon } from '../../../components/icon';
 import { Section } from '../../../components/section';
 import { useListRemovalFocus } from '../../../hooks/use-list-removal-focus';
+import { useSpinDelay } from '../../../hooks/use-spin-delay';
 import { fill, useMessages } from '../../../localization';
+import { useStableOrder } from '../../../primitives/hooks';
 import type { UserProfilePhone } from './user-profile-account-section.types';
 import type { UserProfileAddPhoneControllerOptions } from './user-profile-add-phone.controller';
 import { useUserProfileAddPhoneController } from './user-profile-add-phone.controller';
 import { UserProfileAddPhoneDialog } from './user-profile-add-phone.dialog';
 import { UserProfileContactListRowView } from './user-profile-contact-list-row.view';
 import { UserProfileContactRowView } from './user-profile-contact-row.view';
+
+const byId = (item: { id: string }) => item.id;
 
 export interface UserProfilePhoneRowViewProps {
   phones: UserProfilePhone[];
@@ -37,10 +41,25 @@ export function UserProfilePhoneRowView({
 }: UserProfilePhoneRowViewProps) {
   const m = useMessages('userProfileAccountSection');
   const row = useRef<HTMLDivElement>(null);
+  const formattedPhones = useMemo(
+    () => phones.map(phone => ({ ...phone, value: stringToFormattedPhoneString(phone.value) })),
+    [phones],
+  );
+  const orderedPhones = useStableOrder(formattedPhones, byId);
+  const [pendingPrimaryId, setPendingPrimaryId] = useState<string>();
+  const pulsing = useSpinDelay(pendingPrimaryId ?? null) !== null;
+  const [heldPhones, setHeldPhones] = useState(orderedPhones);
+  if (!pulsing && heldPhones !== orderedPhones) {
+    setHeldPhones(orderedPhones);
+  }
+  const shownPhones = pulsing ? heldPhones : orderedPhones;
   const removalFocus = useListRemovalFocus({
-    ids: phones.map(phone => phone.id),
+    ids: shownPhones.map(phone => phone.id),
     onRemove: onRemovePhone,
-    fallback: () => row.current?.querySelector<HTMLButtonElement>('button:not([disabled])') ?? row.current,
+    fallback: () =>
+      Array.from(row.current?.querySelectorAll<HTMLButtonElement>('button:not([disabled])') ?? []).find(
+        button => !button.closest('[aria-hidden="true"]'),
+      ) ?? row.current,
   });
   const addPhoneAction =
     onSendPhoneCode && onVerifyPhoneCode ? (
@@ -50,7 +69,6 @@ export function UserProfilePhoneRowView({
       />
     ) : undefined;
   const removePhoneConfirmation = useMemo(() => Confirmation.createHandle<UserProfilePhone>(), []);
-  const [isSettingPrimary, setIsSettingPrimary] = useState(false);
   const [primaryError, setPrimaryError] = useState<string>();
   const settingPrimary = useRef(false);
 
@@ -60,7 +78,7 @@ export function UserProfilePhoneRowView({
       return;
     }
     settingPrimary.current = true;
-    setIsSettingPrimary(true);
+    setPendingPrimaryId(id);
     setPrimaryError(undefined);
     try {
       await onSetPrimaryPhone(id);
@@ -68,7 +86,7 @@ export function UserProfilePhoneRowView({
       setPrimaryError(error instanceof Error ? error.message : m.phone.primaryError);
     } finally {
       settingPrimary.current = false;
-      setIsSettingPrimary(false);
+      setPendingPrimaryId(undefined);
     }
   };
 
@@ -78,15 +96,10 @@ export function UserProfilePhoneRowView({
       removePhoneConfirmation.open(phone);
     }
   };
-  const formattedPhones = phones.map(phone => ({
-    ...phone,
-    value: stringToFormattedPhoneString(phone.value),
-  }));
-
   if (!allowMultipleAccounts) {
     return (
       <UserProfileContactRowView
-        items={formattedPhones}
+        items={shownPhones}
         kind='phone'
         label={m.phone.label}
         addAction={addPhoneAction}
@@ -100,12 +113,14 @@ export function UserProfilePhoneRowView({
       <UserProfileContactListRowView
         rowRef={row}
         triggerRef={removalFocus.registerTrigger}
-        items={formattedPhones}
+        items={shownPhones}
         kind='phone'
         label={m.phone.label}
         addAction={addPhoneAction}
         onRemove={onRemovePhone ? removePhone : undefined}
-        onSetPrimary={onSetPrimaryPhone && !isSettingPrimary ? id => void setPrimaryPhone(id) : undefined}
+        onSetPrimary={onSetPrimaryPhone && !pendingPrimaryId && !pulsing ? id => void setPrimaryPhone(id) : undefined}
+        pendingId={pendingPrimaryId}
+        pulsing={pulsing}
         onVerify={onVerifyPhone}
       >
         <Section.Error>{primaryError}</Section.Error>
