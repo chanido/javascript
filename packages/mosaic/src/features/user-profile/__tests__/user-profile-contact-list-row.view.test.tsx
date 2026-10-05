@@ -54,6 +54,20 @@ describe('UserProfileContactListRowView', () => {
     expect(onRemove).toHaveBeenCalledExactlyOnceWith('contact_1');
   });
 
+  it('renders first-load rows without an entering state', () => {
+    render(
+      <UserProfileContactListRowView
+        kind='email'
+        label='Emails'
+        items={[{ id: 'contact_1', value: 'first@example.com' }]}
+      />,
+    );
+
+    const row = screen.getByText('first@example.com').closest('.cl-section-item');
+    expect(row).not.toHaveAttribute('data-starting-style');
+    expect(row?.closest('li')).not.toHaveAttribute('data-starting-style');
+  });
+
   it('keeps a removed item inert in place until its exit finishes', async () => {
     const exit = holdExits();
     const items = [

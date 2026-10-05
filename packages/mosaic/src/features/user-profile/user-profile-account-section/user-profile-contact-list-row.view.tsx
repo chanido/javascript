@@ -108,14 +108,17 @@ function ContactListItem({
     return null;
   }
 
-  const stateProps = { ...transitionProps, style: undefined };
+  const rowProps = appear
+    ? transitionProps
+    : { ...transitionProps, 'data-starting-style': undefined, style: undefined };
+  const slotProps = { ...rowProps, style: undefined };
 
   return (
     <li
       ref={element}
       aria-hidden={present ? undefined : true}
       {...stylex.props(reset.base, styles.contactSlot, appear && styles.contactSlotAppear, contactSlotMarker)}
-      {...stateProps}
+      {...slotProps}
       {...inertProps(!present)}
     >
       <div {...stylex.props(styles.contactClip)}>
@@ -124,7 +127,7 @@ function ContactListItem({
           aria-busy={pending || undefined}
           data-pending={pending ? '' : undefined}
           xstyle={[styles.contactItem, contactItemMarker]}
-          {...transitionProps}
+          {...rowProps}
         >
           <Section.Content xstyle={styles.contactFade}>{children}</Section.Content>
           {actions ? <Section.Actions xstyle={styles.contactFade}>{actions}</Section.Actions> : null}
