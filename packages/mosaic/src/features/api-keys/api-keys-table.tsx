@@ -122,7 +122,7 @@ function useDebouncedSearch() {
 
 function useApiKeyLabels(apiKeys: APIKeyResource[]): APIKey[] {
   const locale = useLocale();
-  const now = new Date();
+  const [now] = useState(() => new Date());
 
   return apiKeys.map(key => ({
     id: key.id,

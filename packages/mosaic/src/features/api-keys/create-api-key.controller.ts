@@ -33,6 +33,7 @@ export function useCreateAPIKeyController({
   const [open, setOpen] = useState(false);
   const [secret, setSecret] = useState<string | null>(null);
   const [copyError, setCopyError] = useState<string | null>(null);
+  const [openedAt, setOpenedAt] = useState(() => new Date());
 
   const form = useForm({
     initialValues,
@@ -46,7 +47,7 @@ export function useCreateAPIKeyController({
   });
 
   const { expiration } = form.values;
-  const expirationDate = expiration === null ? null : getExpirationDate(expiration, new Date());
+  const expirationDate = expiration === null ? null : getExpirationDate(expiration, openedAt);
 
   return {
     onOpen: event => {
@@ -54,6 +55,7 @@ export function useCreateAPIKeyController({
       form.reset();
       setSecret(null);
       setCopyError(null);
+      setOpenedAt(new Date());
       setOpen(true);
     },
     dialog: {
