@@ -4,8 +4,8 @@ import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { MosaicProvider } from '../../../mosaic-provider';
-import type { UserProfileAddEmailDialogProps } from '../user-profile-account-section/user-profile-add-email.dialog';
-import { UserProfileAddEmailDialog } from '../user-profile-account-section/user-profile-add-email.dialog';
+import type { UserProfileAddEmailDialogProps } from '../user-profile-email-section/user-profile-add-email.dialog';
+import { UserProfileAddEmailDialog } from '../user-profile-email-section/user-profile-add-email.dialog';
 
 function renderView(overrides: Partial<UserProfileAddEmailDialogProps> = {}) {
   const props: UserProfileAddEmailDialogProps = {

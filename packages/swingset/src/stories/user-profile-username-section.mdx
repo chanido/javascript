@@ -1,0 +1,22 @@
+import * as Stories from './user-profile-username-section.stories';
+
+# UserProfileUsernameSection
+
+The username, composed with `Section`. Edit opens a dialog seeded with the saved username; with no
+username yet, the section offers Add instead.
+
+<Story
+  name='Default'
+  storyModule={Stories}
+  composition={[
+    { name: 'Section', href: '/components/section', layer: 'Components' },
+    { name: 'Button', href: '/components/button', layer: 'Components' },
+    { name: 'Dialog', href: '/components/dialog', layer: 'Components' },
+  ]}
+/>
+
+## Edit username failure
+
+Every save is rejected, so the dialog shows the form error and the field error together.
+
+<Story name='EditUsernameFails' storyModule={Stories} />

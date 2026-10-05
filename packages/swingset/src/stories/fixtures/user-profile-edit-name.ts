@@ -1,4 +1,4 @@
-import type { UserProfileEditNameValue } from '@clerk/mosaic/features/user-profile/user-profile-account-section/user-profile-edit-name.dialog';
+import type { UserProfileEditNameValue } from '@clerk/mosaic/features/user-profile/user-profile-profile-section/user-profile-edit-name.dialog';
 import type { FormError } from '@clerk/mosaic/utils/form-error';
 import { SaveError } from '@clerk/mosaic/utils/form-error';
 import { useState } from 'react';

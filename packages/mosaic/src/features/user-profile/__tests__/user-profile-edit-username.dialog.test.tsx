@@ -6,9 +6,9 @@ import { Button } from '../../../components/button';
 import type { MosaicLocalization } from '../../../localization';
 import { MosaicProvider } from '../../../mosaic-provider';
 import { SaveError } from '../../../utils/form-error';
-import { useUserProfileEditUsernameController } from '../user-profile-account-section/user-profile-edit-username.controller';
-import type { UserProfileEditUsernameDialogProps } from '../user-profile-account-section/user-profile-edit-username.dialog';
-import { UserProfileEditUsernameDialog } from '../user-profile-account-section/user-profile-edit-username.dialog';
+import { useUserProfileEditUsernameController } from '../user-profile-username-section/user-profile-edit-username.controller';
+import type { UserProfileEditUsernameDialogProps } from '../user-profile-username-section/user-profile-edit-username.dialog';
+import { UserProfileEditUsernameDialog } from '../user-profile-username-section/user-profile-edit-username.dialog';
 
 type ViewProps = Omit<UserProfileEditUsernameDialogProps, 'form'> & {
   onSubmit: (username: string) => Promise<void>;

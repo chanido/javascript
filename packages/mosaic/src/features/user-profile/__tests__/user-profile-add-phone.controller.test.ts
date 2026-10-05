@@ -1,7 +1,7 @@
 import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { useUserProfileAddPhoneController } from '../user-profile-account-section/user-profile-add-phone.controller';
+import { useUserProfileAddPhoneController } from '../user-profile-phone-section/user-profile-add-phone.controller';
 
 const sendCode = vi.fn(() => Promise.resolve());
 const onCreate = vi.fn(() => Promise.resolve({ sendCode, verifyCode: () => Promise.resolve() }));

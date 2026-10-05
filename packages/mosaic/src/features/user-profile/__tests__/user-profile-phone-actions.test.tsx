@@ -5,17 +5,13 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { MosaicProvider } from '../../../mosaic-provider';
 import { SaveError } from '../../../utils/form-error';
-import type { UserProfileAccountSectionViewProps } from '../user-profile-account-section/user-profile-account-section.view';
-import { UserProfileAccountSectionView } from '../user-profile-account-section/user-profile-account-section.view';
+import type { UserProfilePhoneSectionViewProps } from '../user-profile-phone-section/user-profile-phone-section.view';
+import { UserProfilePhoneSectionView } from '../user-profile-phone-section/user-profile-phone-section.view';
 
-function renderPhone(overrides: Partial<UserProfileAccountSectionViewProps> = {}) {
+function renderPhone(overrides: Partial<UserProfilePhoneSectionViewProps> = {}) {
   return render(
     <MosaicProvider>
-      <UserProfileAccountSectionView
-        allowMultipleAccounts
-        name='Test'
-        username='test'
-        emails={[]}
+      <UserProfilePhoneSectionView
         phones={[{ id: 'phone_1', value: '+18015550100', isDefault: false, isVerified: true }]}
         {...overrides}
       />
@@ -103,11 +99,7 @@ describe('phone actions', () => {
       ]);
       return (
         <MosaicProvider>
-          <UserProfileAccountSectionView
-            allowMultipleAccounts
-            name='Test'
-            username='test'
-            emails={[]}
+          <UserProfilePhoneSectionView
             phones={phones}
             onSetPrimaryPhone={id =>
               setPhones(current => current.map(phone => ({ ...phone, isDefault: phone.id === id })))
@@ -162,11 +154,7 @@ describe('phone actions', () => {
       ]);
       return (
         <MosaicProvider>
-          <UserProfileAccountSectionView
-            allowMultipleAccounts
-            name='Test'
-            username='test'
-            emails={[]}
+          <UserProfilePhoneSectionView
             phones={phones}
             getPhoneVerifier={() => phoneVerifier}
             onCreatePhone={() => Promise.resolve(phoneVerifier)}
@@ -239,11 +227,7 @@ describe('phone actions', () => {
     const onRemovePhone = vi.fn();
     render(
       <MosaicProvider>
-        <UserProfileAccountSectionView
-          allowMultipleAccounts
-          name='Test'
-          username='test'
-          emails={[]}
+        <UserProfilePhoneSectionView
           phones={[{ id: 'phone_1', value: '+18015550100', isDefault: false, isVerified: true }]}
           onRemovePhone={onRemovePhone}
         />
@@ -275,5 +259,52 @@ describe('phone actions', () => {
     } else {
       expect(dialog).not.toHaveTextContent('sign in');
     }
+  });
+
+  it('formats normalized phone numbers', () => {
+    renderPhone({
+      phones: [{ id: 'phone_added', value: '+18015558181', isDefault: false, isVerified: true }],
+      onRemovePhone: vi.fn(),
+    });
+
+    expect(screen.getByRole('button', { name: 'Manage +1 (801) 555-8181' })).toBeInTheDocument();
+  });
+
+  it('renders an actionable empty state when no phone number exists', () => {
+    renderPhone({
+      phones: [],
+      onCreatePhone: () => Promise.resolve(phoneVerifier),
+      getPhoneVerifier: () => phoneVerifier,
+    });
+
+    const group = screen.getByRole('group', { name: 'Phone' });
+    const emptyState = within(group).getByText('No phone numbers added');
+    expect(within(group).getByRole('heading', { name: 'Phone' })).toHaveClass('cl-section-title');
+    expect(emptyState.closest('.cl-section-items')).not.toBeNull();
+    expect(within(group).getByRole('button', { name: 'Add phone number' })).toHaveTextContent('Add');
+  });
+
+  it('offers verify, set primary and remove where each applies', async () => {
+    const user = userEvent.setup();
+    const onVerifyPhone = vi.fn();
+    const onSetPrimaryPhone = vi.fn();
+    const onRemovePhone = vi.fn();
+    renderPhone({
+      phones: [
+        { id: 'phone_unverified', value: '+1 801-555-0100', isDefault: false, isVerified: false },
+        { id: 'phone_secondary', value: '+1 801-555-0101', isDefault: false, isVerified: true },
+      ],
+      onVerifyPhone,
+      onSetPrimaryPhone,
+      onRemovePhone,
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Manage +1 (801) 555-0100' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Verify phone number' }));
+    expect(onVerifyPhone).toHaveBeenCalledWith('phone_unverified');
+
+    await user.click(screen.getByRole('button', { name: 'Manage +1 (801) 555-0101' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Set as primary' }));
+    expect(onSetPrimaryPhone).toHaveBeenCalledWith('phone_secondary');
   });
 });

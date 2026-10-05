@@ -2,21 +2,20 @@ import type { ReactElement, ReactNode, Ref } from 'react';
 
 import { Panel } from '../../components/panel';
 import { themeProps } from '../../props';
-import type {
-  UserProfileAccountSectionViewProps,
-  UserProfileEmail,
-  UserProfilePhone,
-} from './user-profile-account-section/user-profile-account-section.view';
-import { UserProfileAccountSectionView } from './user-profile-account-section/user-profile-account-section.view';
 import type { UserProfileConnectedAccount } from './user-profile-connected-accounts-section/user-profile-connected-accounts-section.view';
+import type { UserProfileEmail, UserProfilePhone } from './user-profile-contact.types';
 import type { UserProfileWeb3Wallet } from './user-profile-web3-wallets-section.view';
 
 export type { UserProfileConnectedAccount, UserProfileEmail, UserProfilePhone, UserProfileWeb3Wallet };
-export type { UserProfileNameAttribute } from './user-profile-account-section/user-profile-account-section.types';
-export type { UserProfileEditNameValue } from './user-profile-account-section/user-profile-edit-name.dialog';
+export type { UserProfileNameAttribute } from './user-profile-profile-section/user-profile-profile-section.types';
+export type { UserProfileEditNameValue } from './user-profile-profile-section/user-profile-edit-name.dialog';
 
-export interface UserProfileProfilePanelViewProps extends UserProfileAccountSectionViewProps {
+export interface UserProfileProfilePanelViewProps {
   titleRef?: Ref<HTMLDivElement>;
+  profileSlot?: ReactNode;
+  usernameSlot?: ReactNode;
+  emailSlot?: ReactNode;
+  phoneSlot?: ReactNode;
   connectedAccountsSlot?: ReactNode;
   web3WalletsSlot?: ReactNode;
   enterpriseAccountsSlot?: ReactNode;
@@ -24,13 +23,15 @@ export interface UserProfileProfilePanelViewProps extends UserProfileAccountSect
 }
 
 export function UserProfileProfilePanelView({
-  name = '',
   titleRef,
+  profileSlot,
+  usernameSlot,
+  emailSlot,
+  phoneSlot,
   connectedAccountsSlot,
   web3WalletsSlot,
   enterpriseAccountsSlot,
   dangerSlot,
-  ...account
 }: UserProfileProfilePanelViewProps): ReactElement {
   return (
     <Panel.Root render={<div {...themeProps('user-profile-profile-panel')} />}>
@@ -41,10 +42,10 @@ export function UserProfileProfilePanelView({
         Account
       </Panel.Title>
       <Panel.Sections>
-        <UserProfileAccountSectionView
-          name={name}
-          {...account}
-        />
+        {profileSlot}
+        {usernameSlot}
+        {emailSlot}
+        {phoneSlot}
         {connectedAccountsSlot}
         {enterpriseAccountsSlot}
         {web3WalletsSlot}

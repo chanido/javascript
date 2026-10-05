@@ -72,10 +72,6 @@ async function renderSection(accounts = [google], overrides: FakeFapiSeed = {}) 
   const titleRef = createRef<HTMLDivElement>();
   const view = await renderWithClerk(
     <UserProfileProfilePanelView
-      name='Jane Doe'
-      username=''
-      emails={[]}
-      phones={[]}
       titleRef={titleRef}
       connectedAccountsSlot={<UserProfileConnectedAccountsSection fallbackFocus={() => titleRef.current} />}
     />,

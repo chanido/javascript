@@ -10,7 +10,11 @@ import { UserProfilePasswordSectionView } from '@clerk/mosaic/features/user-prof
 import type {
   UserProfileEmail,
   UserProfilePhone,
-} from '@clerk/mosaic/features/user-profile/user-profile-profile-panel.view';
+} from '@clerk/mosaic/features/user-profile/user-profile-contact.types';
+import { UserProfileEmailSectionView } from '@clerk/mosaic/features/user-profile/user-profile-email-section/user-profile-email-section.view';
+import { UserProfilePhoneSectionView } from '@clerk/mosaic/features/user-profile/user-profile-phone-section/user-profile-phone-section.view';
+import { UserProfileProfileSectionView } from '@clerk/mosaic/features/user-profile/user-profile-profile-section/user-profile-profile-section.view';
+import { UserProfileUsernameSectionView } from '@clerk/mosaic/features/user-profile/user-profile-username-section/user-profile-username-section.view';
 import { UserProfileWeb3WalletsSectionView } from '@clerk/mosaic/features/user-profile/user-profile-web3-wallets-section.view';
 import { useRef, useState } from 'react';
 
@@ -20,14 +24,14 @@ import { chaosEmail, chaosRows, chaosText } from '@/lib/chaos';
 import { APIKeysPanelExample, useAPIKeysTableFixture } from './api-keys-table';
 import { usePreviewImage } from './use-preview-image';
 import { useUserProfileActiveDevicesFixture } from './user-profile-active-devices';
-import { createUserProfileAddEmailFixture } from './user-profile-add-email';
-import { createUserProfileAddPhoneFixture } from './user-profile-add-phone';
 import { useConnectedAccountsFixture } from './user-profile-connected-accounts';
 import { useUserProfileEditNameFixture } from './user-profile-edit-name';
 import { useUserProfileEditPasswordFixture } from './user-profile-edit-password';
 import { useUserProfileEditUsernameFixture } from './user-profile-edit-username';
+import { useUserProfileEmailsFixture } from './user-profile-emails';
 import { useUserProfileMfaExample } from './user-profile-mfa-example';
 import { usePasskeysFixture } from './user-profile-passkeys';
+import { useUserProfilePhonesFixture } from './user-profile-phones';
 import { useWeb3WalletsFixture } from './user-profile-web3-wallets';
 
 export function UserProfileDangerPreview() {
@@ -83,8 +87,12 @@ export function useUserProfileFixture({ onAddEmail }: UserProfileFixtureOptions 
       isDefault: index === 0,
     })),
   );
-  const [emails, setEmails] = useState(seedEmails);
-  const [phones, setPhones] = useState(seedPhones);
+  const { addEmail, ...emails } = useUserProfileEmailsFixture({
+    initialEmails: seedEmails,
+    username: editUsername.username,
+    onAddEmail,
+  });
+  const phones = useUserProfilePhonesFixture({ initialPhones: seedPhones });
   const passkeys = usePasskeysFixture();
   const activeDevices = useUserProfileActiveDevicesFixture();
 
@@ -106,24 +114,26 @@ export function useUserProfileFixture({ onAddEmail }: UserProfileFixtureOptions 
   const [historyPageSize, setHistoryPageSize] = useState(10);
   const apiKeys = useAPIKeysTableFixture();
   const { imageUrl, showFile, clearImage } = usePreviewImage('https://avatars.githubusercontent.com/u/51144033?v=4');
-  const addEmail = (value: string) =>
-    setEmails(current => [...current, { id: `email_${Date.now()}`, value, isDefault: false, isVerified: false }]);
-  const phoneFlow = createUserProfileAddPhoneFixture({
-    onCreated: (id, value) => setPhones(current => [...current, { id, value, isDefault: false, isVerified: false }]),
-    onVerified: id =>
-      setPhones(current => current.map(phone => (phone.id === id ? { ...phone, isVerified: true } : phone))),
-  });
-  const emailFlow = createUserProfileAddEmailFixture({
-    onCreated: (id, value) => setEmails(current => [...current, { id, value, isDefault: false, isVerified: false }]),
-    onVerified: id =>
-      setEmails(current => current.map(email => (email.id === id ? { ...email, isVerified: true } : email))),
-  });
-
   const pages: UserProfileViewProps['pages'] = {
     account: {
-      ...editName,
-      ...editUsername,
       titleRef,
+      profileSlot: (
+        <UserProfileProfileSectionView
+          {...editName}
+          hasImage={Boolean(imageUrl)}
+          imageUrl={imageUrl}
+          onProfilePictureChange={showFile}
+          onRemoveProfilePicture={clearImage}
+        />
+      ),
+      usernameSlot: (
+        <UserProfileUsernameSectionView
+          username={editUsername.username}
+          onSubmit={editUsername.onSubmitUsername}
+        />
+      ),
+      emailSlot: <UserProfileEmailSectionView {...emails} />,
+      phoneSlot: <UserProfilePhoneSectionView {...phones} />,
       connectedAccountsSlot: (
         <UserProfileConnectedAccountsSectionView
           {...connections}
@@ -136,28 +146,7 @@ export function useUserProfileFixture({ onAddEmail }: UserProfileFixtureOptions 
           fallbackFocus={() => titleRef.current}
         />
       ),
-      allowMultipleAccounts: true,
-      hasImage: Boolean(imageUrl),
-      imageUrl,
-      emails,
-      phones,
-      onAddEmail,
-      onCreateEmail: onAddEmail ? undefined : emailFlow.onCreateEmail,
-      getEmailVerifier: onAddEmail ? undefined : emailFlow.getEmailVerifier,
-      ...phoneFlow,
       dangerSlot: <UserProfileDangerPreview />,
-      onManageEmail: () => undefined,
-      onManagePhone: () => undefined,
-      onProfilePictureChange: showFile,
-      onRemoveEmail: id => setEmails(current => current.filter(email => email.id !== id)),
-      onRemoveProfilePicture: clearImage,
-      onRemovePhone: id => setPhones(current => current.filter(phone => phone.id !== id)),
-      onSetPrimaryEmail: id => setEmails(current => current.map(email => ({ ...email, isDefault: email.id === id }))),
-      onSetPrimaryPhone: id => setPhones(current => current.map(phone => ({ ...phone, isDefault: phone.id === id }))),
-      onVerifyEmail: id =>
-        setEmails(current => current.map(email => (email.id === id ? { ...email, isVerified: true } : email))),
-      onVerifyPhone: id =>
-        setPhones(current => current.map(phone => (phone.id === id ? { ...phone, isVerified: true } : phone))),
     },
     security: {
       passwordSlot: { content: <UserProfilePasswordSectionView {...editPassword} /> },

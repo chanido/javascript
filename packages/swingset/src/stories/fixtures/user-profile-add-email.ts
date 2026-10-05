@@ -1,8 +1,8 @@
 import type {
   UserProfileEmailVerification,
   UserProfileEmailVerifier,
-} from '@clerk/mosaic/features/user-profile/user-profile-account-section/user-profile-account-section.types';
-import type { UserProfileAccountSectionViewProps } from '@clerk/mosaic/features/user-profile/user-profile-account-section/user-profile-account-section.view';
+} from '@clerk/mosaic/features/user-profile/user-profile-contact.types';
+import type { UserProfileEmailSectionViewProps } from '@clerk/mosaic/features/user-profile/user-profile-email-section/user-profile-email-section.view';
 
 interface FixtureOptions {
   method?: UserProfileEmailVerification['method'];
@@ -18,7 +18,7 @@ export function createUserProfileAddEmailFixture({
   fail,
   onCreated,
   onVerified,
-}: FixtureOptions = {}): Pick<UserProfileAccountSectionViewProps, 'onCreateEmail' | 'getEmailVerifier'> {
+}: FixtureOptions = {}): Pick<UserProfileEmailSectionViewProps, 'onCreateEmail' | 'getEmailVerifier'> {
   const startLink = (id: string): UserProfileEmailVerification => {
     let cancelled = false;
     const verified = delay(fail === 'verify' ? 2000 : 4000).then(() => {

@@ -5,12 +5,12 @@ import { describe, expect, it, vi } from 'vitest';
 import { Button } from '../../../components/button';
 import { MosaicProvider } from '../../../mosaic-provider';
 import { SaveError } from '../../../utils/form-error';
-import { useUserProfileEditNameController } from '../user-profile-account-section/user-profile-edit-name.controller';
+import { useUserProfileEditNameController } from '../user-profile-profile-section/user-profile-edit-name.controller';
 import type {
   UserProfileEditNameDialogProps,
   UserProfileEditNameValue,
-} from '../user-profile-account-section/user-profile-edit-name.dialog';
-import { UserProfileEditNameDialog } from '../user-profile-account-section/user-profile-edit-name.dialog';
+} from '../user-profile-profile-section/user-profile-edit-name.dialog';
+import { UserProfileEditNameDialog } from '../user-profile-profile-section/user-profile-edit-name.dialog';
 
 type ViewProps = Omit<UserProfileEditNameDialogProps, 'form'> & {
   onSubmit: (value: UserProfileEditNameValue) => Promise<void>;

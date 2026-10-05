@@ -6,22 +6,19 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { MosaicProvider } from '../../../mosaic-provider';
 import { SaveError } from '../../../utils/form-error';
-import type { UserProfileAccountSectionViewProps } from '../user-profile-account-section/user-profile-account-section.view';
-import { UserProfileAccountSectionView } from '../user-profile-account-section/user-profile-account-section.view';
+import type { UserProfileEmailSectionViewProps } from '../user-profile-email-section/user-profile-email-section.view';
+import { UserProfileEmailSectionView } from '../user-profile-email-section/user-profile-email-section.view';
 
 const codeVerifier = {
   start: () => ({ method: 'code', sent: Promise.resolve() }) as const,
   verifyCode: () => Promise.resolve(),
 };
 
-function renderEmail(overrides: Partial<UserProfileAccountSectionViewProps> = {}) {
+function renderEmail(overrides: Partial<UserProfileEmailSectionViewProps> = {}) {
   return render(
     <MosaicProvider>
-      <UserProfileAccountSectionView
-        allowMultipleAccounts
-        name='Test'
+      <UserProfileEmailSectionView
         username='test'
-        phones={[]}
         emails={[{ id: 'email_1', value: 'test@example.com', isDefault: false, isVerified: true }]}
         {...overrides}
       />
@@ -56,11 +53,8 @@ describe('email actions', () => {
       ]);
       return (
         <MosaicProvider>
-          <UserProfileAccountSectionView
-            allowMultipleAccounts
-            name='Test'
+          <UserProfileEmailSectionView
             username='test'
-            phones={[]}
             emails={emails}
             onCreateEmail={() => Promise.resolve(codeVerifier)}
             getEmailVerifier={() => codeVerifier}
@@ -143,5 +137,69 @@ describe('email actions', () => {
     } else {
       expect(dialog).not.toHaveTextContent('sign in');
     }
+  });
+
+  it('renders the emails as a group with an Add action', () => {
+    renderEmail({
+      emails: [{ id: 'email_1', value: 'item1@clerk.dev', isDefault: true, isVerified: true }],
+      onAddEmail: vi.fn(),
+    });
+
+    const group = screen.getByRole('group', { name: 'Email' });
+    expect(within(group).getByRole('heading', { name: 'Email' })).toHaveClass('cl-section-title');
+    expect(within(group).getByRole('list')).toContainElement(screen.getByText('item1@clerk.dev'));
+    expect(screen.getByText('item1@clerk.dev').closest('.cl-section-item')).toHaveTextContent('Primary');
+    expect(within(group).getByRole('button', { name: 'Add email' })).toHaveTextContent('Add');
+  });
+
+  it('forwards Add email when no verification flow is wired', async () => {
+    const user = userEvent.setup();
+    const onAddEmail = vi.fn();
+    renderEmail({ emails: [], onAddEmail });
+
+    expect(screen.getByText('No email addresses added')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Add email' }));
+
+    expect(onAddEmail).toHaveBeenCalledOnce();
+  });
+
+  it('offers verify, set primary and remove where each applies', async () => {
+    const user = userEvent.setup();
+    const onVerifyEmail = vi.fn();
+    const onSetPrimaryEmail = vi.fn();
+    const onRemoveEmail = vi.fn();
+    renderEmail({
+      emails: [
+        { id: 'email_primary', value: 'primary@clerk.dev', isDefault: true, isVerified: false },
+        { id: 'email_secondary', value: 'secondary@clerk.dev', isDefault: false, isVerified: true },
+        { id: 'email_unverified', value: 'unverified@clerk.dev', isDefault: false, isVerified: false },
+      ],
+      onVerifyEmail,
+      onSetPrimaryEmail,
+      onRemoveEmail,
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Manage primary@clerk.dev' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Complete verification' }));
+    expect(onVerifyEmail).toHaveBeenCalledWith('email_primary');
+
+    await user.click(screen.getByRole('button', { name: 'Manage secondary@clerk.dev' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Set as primary' }));
+    expect(onSetPrimaryEmail).toHaveBeenCalledWith('email_secondary');
+
+    await user.click(screen.getByRole('button', { name: 'Manage secondary@clerk.dev' }));
+    const removeEmail = screen.getByRole('menuitem', { name: 'Remove email' });
+    expect(removeEmail).toHaveAttribute('data-color', 'negative');
+    await user.click(removeEmail);
+    await user.click(
+      within(screen.getByRole('alertdialog', { name: 'Remove email address?' })).getByRole('button', {
+        name: 'Remove',
+      }),
+    );
+    expect(onRemoveEmail).toHaveBeenCalledWith('email_secondary');
+
+    await user.click(screen.getByRole('button', { name: 'Manage unverified@clerk.dev' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Verify' }));
+    expect(onVerifyEmail).toHaveBeenCalledWith('email_unverified');
   });
 });

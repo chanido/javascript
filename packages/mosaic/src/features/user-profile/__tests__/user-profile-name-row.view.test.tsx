@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
 import { MosaicProvider } from '../../../mosaic-provider';
-import { UserProfileNameRowView } from '../user-profile-account-section/user-profile-name-row.view';
+import { UserProfileNameRowView } from '../user-profile-profile-section/user-profile-name-row.view';
 
 describe('UserProfileNameRowView', () => {
   it('offers to add a name the user does not have yet', async () => {

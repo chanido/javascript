@@ -4,8 +4,8 @@ import { useState } from 'react';
 import { describe, expect, it } from 'vitest';
 
 import { MosaicProvider } from '../../../mosaic-provider';
-import { UserProfileEmailRowView } from '../user-profile-account-section/user-profile-email-row.view';
-import { UserProfilePhoneRowView } from '../user-profile-account-section/user-profile-phone-row.view';
+import { UserProfileEmailSectionView } from '../user-profile-email-section/user-profile-email-section.view';
+import { UserProfilePhoneSectionView } from '../user-profile-phone-section/user-profile-phone-section.view';
 
 describe('contact removal focus', () => {
   it.each(['email', 'phone'] as const)('focuses the remaining %s menu and the empty group without Add', async kind => {
@@ -21,14 +21,12 @@ describe('contact removal focus', () => {
       return (
         <MosaicProvider>
           {kind === 'email' ? (
-            <UserProfileEmailRowView
-              allowMultipleAccounts
+            <UserProfileEmailSectionView
               emails={items}
               onRemoveEmail={remove}
             />
           ) : (
-            <UserProfilePhoneRowView
-              allowMultipleAccounts
+            <UserProfilePhoneSectionView
               phones={items}
               onRemovePhone={remove}
             />

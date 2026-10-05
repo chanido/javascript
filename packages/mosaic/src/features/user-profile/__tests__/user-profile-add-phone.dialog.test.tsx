@@ -4,8 +4,8 @@ import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { MosaicProvider } from '../../../mosaic-provider';
-import type { UserProfileAddPhoneDialogProps } from '../user-profile-account-section/user-profile-add-phone.dialog';
-import { UserProfileAddPhoneDialog } from '../user-profile-account-section/user-profile-add-phone.dialog';
+import type { UserProfileAddPhoneDialogProps } from '../user-profile-phone-section/user-profile-add-phone.dialog';
+import { UserProfileAddPhoneDialog } from '../user-profile-phone-section/user-profile-add-phone.dialog';
 
 function renderView(overrides: Partial<UserProfileAddPhoneDialogProps> = {}) {
   const props: UserProfileAddPhoneDialogProps = {

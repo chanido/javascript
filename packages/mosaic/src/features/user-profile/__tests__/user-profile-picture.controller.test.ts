@@ -3,8 +3,8 @@ import { act, renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { SaveError } from '../../../utils/form-error';
-import type { UserProfilePictureControllerOptions } from '../user-profile-account-section/user-profile-picture.controller';
-import { useUserProfilePictureController } from '../user-profile-account-section/user-profile-picture.controller';
+import type { UserProfilePictureControllerOptions } from '../user-profile-profile-section/user-profile-picture.controller';
+import { useUserProfilePictureController } from '../user-profile-profile-section/user-profile-picture.controller';
 
 const file = new File(['x'], 'me.png', { type: 'image/png' });
 
