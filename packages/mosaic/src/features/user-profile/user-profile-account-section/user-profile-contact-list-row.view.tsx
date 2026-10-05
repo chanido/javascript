@@ -16,7 +16,7 @@ import { reset } from '../../../styles/reset.styles';
 import { truncationStyles } from '../../../styles/typography.styles';
 import { styles as panelStyles } from '../user-profile-profile-panel.styles';
 import { contactItemMarker, contactSlotMarker } from './user-profile-account-section.markers.stylex';
-import { badgeShift, styles } from './user-profile-account-section.styles';
+import { styles } from './user-profile-account-section.styles';
 
 export interface UserProfileContactListRowViewProps {
   rowRef?: Ref<HTMLDivElement>;
@@ -38,7 +38,7 @@ export interface UserProfileContactListRowViewProps {
 
 const byId = (item: { id: string }) => item.id;
 
-function PrimaryBadge({ open, direction, children }: { open: boolean; direction: number; children: ReactNode }) {
+function PrimaryBadge({ open, children }: { open: boolean; children: ReactNode }) {
   const element = useRef<HTMLSpanElement>(null);
   const { mounted, transitionProps } = useTransition({ open, ref: element });
 
@@ -50,7 +50,7 @@ function PrimaryBadge({ open, direction, children }: { open: boolean; direction:
     <Badge
       ref={element}
       color='neutral'
-      xstyle={[styles.badgeSlotItem, badgeShift.along(direction)]}
+      xstyle={styles.badgeSlotItem}
       {...transitionProps}
     >
       {children}
@@ -152,13 +152,6 @@ export function UserProfileContactListRowView({
   const m = useMessages('userProfileAccountSection');
   const emptyDescription = m[kind].empty;
   const entries = usePresenceList(items, byId);
-  const primaryId = items.find(item => item.isDefault)?.id;
-  const primaryMove = useRef({ id: primaryId, direction: 0 });
-  if (primaryMove.current.id !== primaryId) {
-    const from = entries.findIndex(entry => entry.item.id === primaryMove.current.id);
-    const to = entries.findIndex(entry => entry.item.id === primaryId);
-    primaryMove.current = { id: primaryId, direction: from === -1 || to === -1 ? 0 : Math.sign(to - from) };
-  }
   const settled = useRef(false);
   useEffect(() => {
     settled.current = true;
@@ -234,12 +227,7 @@ export function UserProfileContactListRowView({
                 <Section.Description xstyle={panelStyles.contactValue}>
                   <span {...stylex.props(truncationStyles.singleLine, panelStyles.contactText)}>{item.value}</span>
                   <span {...stylex.props(styles.badgeSlot)}>
-                    <PrimaryBadge
-                      open={item.isDefault === true}
-                      direction={primaryMove.current.direction}
-                    >
-                      {m.primary}
-                    </PrimaryBadge>
+                    <PrimaryBadge open={item.isDefault === true}>{m.primary}</PrimaryBadge>
                     <PendingIndicator
                       open={shownPendingId === item.id}
                       label={m.settingPrimary}

@@ -105,11 +105,6 @@ export const styles = stylex.create({
         ':where([data-starting-style], [data-ending-style])': 1,
       },
     },
-    transformOrigin: {
-      default: 'center',
-      ':where([data-closed])': 'var(--_cl-badge-origin-out, center)',
-      ':where([data-open])': 'var(--_cl-badge-origin-in, center)',
-    },
     transitionDelay: {
       default: durationVars['--cl-duration-fast'],
       ':where([data-ending-style])': durationVars['--cl-duration-instant'],
@@ -119,29 +114,12 @@ export const styles = stylex.create({
       ':where([data-ending-style])': durationVars['--cl-duration-fast'],
     },
     transitionProperty: {
-      default: 'opacity, scale, filter, translate',
+      default: 'opacity, scale, filter',
       '@media (prefers-reduced-motion: reduce)': 'opacity',
     },
     transitionTimingFunction: {
-      default: `${easingVars['--cl-ease-enter']}, ${easingVars['--cl-ease-default']}, ${easingVars['--cl-ease-enter']}, ${easingVars['--cl-ease-default']}`,
+      default: `${easingVars['--cl-ease-enter']}, ${easingVars['--cl-ease-default']}, ${easingVars['--cl-ease-enter']}`,
       ':where([data-ending-style])': easingVars['--cl-ease-exit'],
     },
-    translate: {
-      default: '0 0',
-      ':where([data-ending-style])': '0 var(--_cl-badge-shift, 0px)',
-      ':where([data-starting-style])': '0 calc(-1 * var(--_cl-badge-shift, 0px))',
-      '@media (prefers-reduced-motion: reduce)': {
-        default: '0 0',
-        ':where([data-starting-style], [data-ending-style])': '0 0',
-      },
-    },
   },
-});
-
-export const badgeShift = stylex.create({
-  along: (direction: number) => ({
-    '--_cl-badge-origin-in': direction > 0 ? '50% -75%' : direction < 0 ? '50% 175%' : 'center',
-    '--_cl-badge-origin-out': direction > 0 ? '50% 175%' : direction < 0 ? '50% -75%' : 'center',
-    '--_cl-badge-shift': `${direction * 0.25}rem`,
-  }),
 });
