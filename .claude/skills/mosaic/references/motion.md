@@ -441,6 +441,15 @@ state and the new state arrive after its `fast` delay. A page-wide pulse on the
 surrounding rows was tried first and dropped: it read as the list reloading, not as
 one thing changing.
 
+**Spinners are small elements too.** A spinner that appears after a spin delay and
+leaves when the work is done takes the same entrance and exit as a badge: opacity,
+`scale`, the 1px blur, and the `fast` delay when it is replacing or being replaced by
+something in its slot. The contact rows' pending spinner does; `SubmitButton`'s still
+snaps its spinner on and off through `opacity` and is the next to adopt it. Keep its
+accessibility approach either way: hide a pending spinner with opacity, never
+`display` or `visibility`, so the `progressbar` stays in the tree for the whole
+action.
+
 **Delays inside something that is itself delayed.** When the pill sits in a row that
 waits before it moves (see "Rows in a list"), its own delays are relative to the
 row's start, so add the row's delay to them. Otherwise the pill fades in while its
