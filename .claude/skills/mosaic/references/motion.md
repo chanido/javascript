@@ -423,15 +423,18 @@ so an empty slot adds no gap to the flex row around it. The wrapper's width foll
 whichever child is widest, which is the only layout change, and it happens at the
 end of the text where nothing follows.
 
-**Direction, when the element travels between places.** A quarter rem of `translate`
-along the move: the leaving element exits toward where the new one appears, the
-arriving one enters from where the old one was. Push the scale's `transform-origin`
-75% past the edge it travels through (`50% -75%` coming from above, `50% 175%` from
-below), so the scale adds a small arc in the same direction and the pill swings in
-rather than sliding. Half a rem and an origin 180% out were tried first and read as
-dramatic for something this size. Set the direction through custom properties from a
-dynamic style, and key the origin on `data-open` / `data-closed` rather than the
-starting and ending attributes, since it has to hold for the whole transition.
+**Direction, when the element travels between places.** If a thing leaves one spot
+and reappears in another, let both halves say which way: the leaving element exits
+toward where the new one appears, the arriving one enters from where the old one
+was, through a small `translate` along the move. Mirror it in the scale by pushing
+`transform-origin` past the edge the element travels through, so the scale adds a
+small arc in the same direction and the pill swings rather than slides. How much is
+a judgement to make on the element itself: the contact badge, a 20px pill moving
+between 60px rows, settled on a quarter rem and an origin 75% past the edge, and half
+a rem with the origin 180% out read as dramatic at that size. Set the direction
+through custom properties from a dynamic style, and key the origin on `data-open` /
+`data-closed` rather than the starting and ending attributes, since it has to hold
+for the whole transition.
 
 **A pending state shows where its outcome will land.** Mark the container busy at
 once, and once the request outlasts `useSpinDelay`'s threshold, fade a small named
