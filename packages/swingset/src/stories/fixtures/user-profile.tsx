@@ -157,7 +157,7 @@ export function useUserProfileFixture({ onAddEmail }: UserProfileFixtureOptions 
     },
     security: {
       passwordSlot: { content: <UserProfilePasswordSectionView {...editPassword} /> },
-      passkeysSlot: { content: <UserProfilePasskeysSectionView {...passkeys} /> },
+      passkeysSlot: <UserProfilePasskeysSectionView {...passkeys} />,
       ...mfa.security,
       devices: activeDevices.devices,
       dangerSlot: <UserProfileDangerPreview />,
