@@ -57,6 +57,8 @@ A declaration that breaks a rule the CLI can check from the file stops `run` bef
 
 One team key creates, changes, and deletes the application. The CLI reads `CLERK_PLATFORM_API_KEY` first, then the file that `CLERK_PLATFORM_API_KEY_FILE` names. A variable that is set and does not work is an error. With neither variable set, the CLI reads the key's 1Password secret reference from `VERIFY_PLATFORM_KEY_REFERENCE`, or from the one line of `~/.verify/clerk-platform-key-reference`, and asks the 1Password CLI for the key. The 1Password app then asks a person to approve, and a refused or unanswered request is an error. The output names the source as `1Password` and never prints the reference.
 
+Before it asks 1Password, the CLI sends one request with no key. In a cloud environment that holds the key as an API credential for `api.clerk.com`, the environment adds the key after the request leaves the machine, so that request succeeds and no key is ever in the session. The output then names the source as `a key attached outside this machine (no key is in this process)`. [Remote devices](remote.md) has the setup.
+
 `doctor` checks the credential every time and names its source in the `instances` line. `up` and `run` use it when they create, repair, or replace the application, and `run` also uses it to change settings. `down` uses it when the worktree holds an application. `screen` and `attach` never use it.
 
 With no credential, `doctor` fails `instances` and prints how to supply one. `up` and `run` fail with `KEYS_MISSING` before they lease a device. `down` releases the device first and then fails the same way. The ledger keeps the application's name, and `down` with the credential deletes it later.

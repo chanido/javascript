@@ -9,6 +9,8 @@ Read this when a local lane fails to lease or boot, when you need a lane's UDID 
 - The machine holds four iOS and two Android lanes, across all agents. When all are taken, `up` and `run` fail with `POOL_FULL`. While `--wait <seconds>` waits, the CLI prints one `wait` line naming the lanes in use.
 - Before leasing, `up` and `run` release lanes whose claiming process is gone and whose worktree no longer exists, and print a `reap` line for each.
 
+A remote device is not a lane: see [remote.md](remote.md).
+
 ## The agent-device daemon
 
 Each worktree runs its own agent-device daemon from `.claude/skills/verify-clerk-expo/node_modules/.bin/agent-device`, with state under `.claude/skills/verify-clerk-expo/.verify/agent-device/`. A daemon shared across worktrees breaks every worktree once the worktree that started it is removed. The CLI sets `AGENT_DEVICE_STATE_DIR` for e2e and for every `agent-device` call, and `down` stops the daemon. If you call `agent-device` yourself, set `AGENT_DEVICE_STATE_DIR` to that directory. `down --dry-run` shows the daemon's pid in its `would stop` line. Never print `daemon.json` in the state directory: it holds the daemon's auth token.

@@ -1,6 +1,6 @@
 # How a change reaches the app
 
-Read this when a run launches old code, when `up` or `run` fails with `NOT_READY` about a stale `dist`, or when you change something other than `packages/expo/src`. Terms: the watch build is `tsdown --watch` in `packages/expo`, which keeps `packages/expo/dist` current. `dist` is a package's build output, and Metro bundles the app from it.
+Read this when a local run launches old code, when `up` or `run` fails with `NOT_READY` about a stale `dist`, or when you change something other than `packages/expo/src`. Terms: the watch build is `tsdown --watch` in `packages/expo`, which keeps `packages/expo/dist` current. `dist` is a package's build output, and Metro bundles the app from it.
 
 ## What forces a native rebuild
 
@@ -32,6 +32,10 @@ Fast Refresh stays on. When you save a JS change while an app from an earlier ru
 ## Known gap
 
 The check dates a Metro revision it has not seen before by the second it was built. If two edits land within the same second, or an edit is reverted while Metro's watcher is still behind, the check can, rarely, launch a bundle one edit older than `dist`. Touching files cannot force a newer revision, because Metro skips modules whose transform key did not change. When a JS proof matters, look for your change's own log line in this run's window.
+
+## A remote lease has none of this
+
+A remote lease runs a standalone Release build with the JS embedded, so there is no watch build, no Metro, and none of the three checks. Its build key also covers the JS inputs, and a JS edit reaches the app by commit, push, `run`. See [remote.md](remote.md).
 
 ## Troubleshooting
 

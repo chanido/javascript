@@ -22,5 +22,5 @@ Preconditions:
 
 ## Gotchas
 
-- The `Sign out` row is at the bottom of the profile. On a small simulator it can be below the fold. The lane devices show it without scrolling.
+- The `Sign out` row is at the bottom of the profile. On a small simulator it can be below the fold. The devices the CLI leases show it without scrolling.
 - A sign-out that only clears the native session leaves `signedIn` true in JS. That is the bug this feature guards against.

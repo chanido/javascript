@@ -1,13 +1,13 @@
 # @clerk/expo verification map
 
-This directory is the maintained source for verifying the user-facing behavior of `@clerk/expo` through the `expo-native` fixture app in `integration/templates/expo-native`. The fixture runs as a Debug dev client that loads its JS, and `packages/expo` with it, from a local Metro server. Read this index before driving the app, then use the matching feature file as the recipe. Every recipe runs through `.claude/skills/verify-clerk-expo/bin/control-clerk-expo` and the golden specs under `specs/golden/<feature>/`.
+This directory is the maintained source for verifying the user-facing behavior of `@clerk/expo` through the `expo-native` fixture app in `integration/templates/expo-native`. On a local device the fixture runs as a Debug dev client that loads its JS, and `packages/expo` with it, from a local Metro server. On a remote device it runs as a standalone Release build of a pushed commit, with the JS embedded. Read this index before driving the app, then use the matching feature file as the recipe. Every recipe runs through `.claude/skills/verify-clerk-expo/bin/control-clerk-expo` and the golden specs under `specs/golden/<feature>/`.
 
 ## Baseline preconditions
 
 - Run commands from the root of a clerk/javascript worktree. Run `pnpm install` and `npm ci --prefix .claude/skills/verify-clerk-expo` once there. Paths that start with `.verify/` or `specs/` are inside the skill directory.
-- Run `.claude/skills/verify-clerk-expo/bin/control-clerk-expo doctor --platform ios` (or `android`) first. Before the first `up`, `build` is the one failing check.
-- `up` needs the team's Clerk Platform API key: `CLERK_PLATFORM_API_KEY` or `CLERK_PLATFORM_API_KEY_FILE`, or a 1Password reference that the machine holds outside the repository. `doctor` names the one it found in its `instances` line and prints one fix line when there is none. Do not read or print the key.
-- The CLI drives only lanes it owns. On iOS a lane is `verify-ios-<n>`, cloned from `Clerk Verify Template iOS`. On Android it is `Clerk_Verify_Pixel` booted `-read-only` as `emulator-5560` or `emulator-5562`. Never drive a simulator or emulator the CLI did not create, or a device another worktree holds.
+- Run `.claude/skills/verify-clerk-expo/bin/control-clerk-expo doctor --platform ios` (or `android`) first. Before the first `up`, `build` is the one failing check. On a machine that cannot run the device, `doctor` checks the path to a remote device instead. A remote device runs a build of a pushed commit, so commit and push before `up` and before a `run` that follows an edit.
+- `up` needs the team's Clerk Platform API key: `CLERK_PLATFORM_API_KEY` or `CLERK_PLATFORM_API_KEY_FILE`, a cloud environment's API credential, or a 1Password reference that the machine holds outside the repository. `doctor` names the one it found in its `instances` line and prints one fix line when there is none. Do not read or print the key.
+- The CLI drives only devices it owns: a local lane, or a remote simulator or emulator that it leased on a CI runner. On iOS a lane is `verify-ios-<n>`, cloned from `Clerk Verify Template iOS`. On Android it is `Clerk_Verify_Pixel` booted `-read-only` as `emulator-5560` or `emulator-5562`. Never drive a simulator or emulator the CLI did not create, or a device another worktree holds.
 - Every launch gets a new `verifyStorageScope` unless it passes `keepStorage: true`, so no spec inherits a session from another spec.
 
 ## Test users and sign-in
@@ -50,11 +50,11 @@ Rules:
 
 ## Proof and skip reporting
 
-- A proof is a passing `run` whose run directory holds `video.mp4`, `screenshots/`, `states.jsonl`, `state.json`, `app.log`, and `e2e/report.json`. `states.jsonl` is the state proof on both platforms. On Android `app.log` also has the app's `[verify]` console lines. On iOS it has native log lines only, and the JS console lines, a JS change's own log lines included, are in `.verify/runtime/metro-<port>.log`. Read this run's part of that log by `runId`, as `references/freshness.md` describes.
+- A proof is a passing `run` whose run directory holds `video.mp4`, `screenshots/`, `states.jsonl`, `state.json`, `app.log`, and `e2e/report.json`. `states.jsonl` is the state proof on both platforms. On Android `app.log` also has the app's `[verify]` console lines. On a local iOS device it has native log lines only, and the JS console lines, a JS change's own log lines included, are in `.verify/runtime/metro-<port>.log`. Read this run's part of that log by `runId`, as `references/freshness.md` describes. A remote device has no Metro log, so prove a JS change there from `states.jsonl` and a screenshot.
 - Name the run id, the platform, and the specs in the PR. Attach the run with `attach <run-id> --pr <n>`.
 - Four specs carry `form-entry`: `custom-flow-sign-in/complete`, `custom-flow-sign-up/request-code`, `custom-flow-sign-up/complete`, and `native-auth-view/complete`. None has a recorded passing run. Report a skipped one as skipped with the reason the CLI prints, `skipped by --skip form-entry`, and never as verified through a ticket launch.
 - `custom-flow-sign-in/request-code` and `native-auth-view/request-code` (iOS) type no code or password, so `--skip form-entry` still runs them and they prove their flow up to the code screen. Sign-up has no such spec.
-- A spec limited to one platform reports as skipped on the other. Say which platform each proof ran on.
+- A spec limited to one platform reports as skipped on the other. Say which platform, and local or remote device, each proof ran on.
 
 ## Feature entry contract
 
