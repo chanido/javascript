@@ -8,9 +8,12 @@ import type {
   UserProfileDevice,
 } from './user-profile-active-devices-section.view';
 import { UserProfileActiveDevicesSectionView } from './user-profile-active-devices-section.view';
-import type { UserProfileMfaSlot } from './user-profile-mfa-section';
-import type { UserProfileMfaAddableMethod, UserProfileMfaMethod } from './user-profile-mfa-section.view';
-import { UserProfileMfaSectionView } from './user-profile-mfa-section.view';
+import type { UserProfileMfaSlot } from './user-profile-mfa-section/user-profile-mfa-section';
+import type {
+  UserProfileMfaAddableMethod,
+  UserProfileMfaMethod,
+} from './user-profile-mfa-section/user-profile-mfa-section.view';
+import { UserProfileMfaSectionView } from './user-profile-mfa-section/user-profile-mfa-section.view';
 import type { UserProfilePasskey } from './user-profile-passkeys-section.view';
 import { UserProfilePasskeysSectionView } from './user-profile-passkeys-section.view';
 import type { UserProfilePasswordSlot } from './user-profile-password-section/user-profile-password-section.types';

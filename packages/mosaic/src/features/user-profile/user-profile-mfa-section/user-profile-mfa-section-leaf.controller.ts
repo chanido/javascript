@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 
-import { useListRemovalFocus } from '../../hooks/use-list-removal-focus';
-import { useMessages } from '../../localization';
+import { useListRemovalFocus } from '../../../hooks/use-list-removal-focus';
+import { useMessages } from '../../../localization';
 import { MfaCancelledError, type UserProfileMfaMethod } from './user-profile-mfa-section.types';
 import type { UserProfileMfaSectionViewProps } from './user-profile-mfa-section.view';
 
