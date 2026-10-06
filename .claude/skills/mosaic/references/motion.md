@@ -384,10 +384,9 @@ take, and the badge change is held until the spinner has shown for its 400ms
 minimum. The old badge then exits at `fast` and the new one enters after a `fast`
 delay, so the two never cross; the spinner leaves with the old badge. Both share one
 transition (opacity, `scale(0.9 → 1)`, `blur(1px → 0)`) in one grid cell, so neither
-shifts the other. A directional variant, translating the badge toward the row it
-moves to and pivoting its scale past that edge, was built and dropped: with the
-exit-then-enter sequencing the fades already read as one badge moving, and the
-travel added noise. A page-wide
+shifts the other. The badge also carries the direction of the move: half a rem of
+`translate` toward the row it leaves for or arrives from, scale origin left at
+center. A page-wide
 pulse on the live rows was tried first and dropped: it read as the list reloading,
 not as one row changing.
 
@@ -423,6 +422,15 @@ with both children at `grid-area: 1 / 1`, start-aligned, and `:empty { display: 
 so an empty slot adds no gap to the flex row around it. The wrapper's width follows
 whichever child is widest, which is the only layout change, and it happens at the
 end of the text where nothing follows.
+
+**Direction, when the element travels between places.** If a thing leaves one spot
+and reappears in another, let both halves say which way: the leaving element exits
+toward where the new one appears and the arriving one enters from where the old one
+was, through a small `translate` along the move. The contact badge, a 20px pill
+moving between 60px rows, uses half a rem. Keep the scale's origin at center: pushing
+it past the edge the element travels through to add an arc was tried and read as
+dramatic at this size. Set the direction through a custom property from a dynamic
+style, so one transition serves every direction.
 
 **A pending state shows where its outcome will land.** Mark the container busy at
 once, and once the request outlasts `useSpinDelay`'s threshold, fade a small named

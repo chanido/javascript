@@ -114,12 +114,25 @@ export const styles = stylex.create({
       ':where([data-ending-style])': durationVars['--cl-duration-fast'],
     },
     transitionProperty: {
-      default: 'opacity, scale, filter',
+      default: 'opacity, scale, filter, translate',
       '@media (prefers-reduced-motion: reduce)': 'opacity',
     },
     transitionTimingFunction: {
-      default: `${easingVars['--cl-ease-enter']}, ${easingVars['--cl-ease-default']}, ${easingVars['--cl-ease-enter']}`,
+      default: `${easingVars['--cl-ease-enter']}, ${easingVars['--cl-ease-default']}, ${easingVars['--cl-ease-enter']}, ${easingVars['--cl-ease-default']}`,
       ':where([data-ending-style])': easingVars['--cl-ease-exit'],
     },
+    translate: {
+      default: '0 0',
+      ':where([data-ending-style])': '0 var(--_cl-badge-shift, 0px)',
+      ':where([data-starting-style])': '0 calc(-1 * var(--_cl-badge-shift, 0px))',
+      '@media (prefers-reduced-motion: reduce)': {
+        default: '0 0',
+        ':where([data-starting-style], [data-ending-style])': '0 0',
+      },
+    },
   },
+});
+
+export const badgeShift = stylex.create({
+  along: (direction: number) => ({ '--_cl-badge-shift': `${direction * 0.5}rem` }),
 });
