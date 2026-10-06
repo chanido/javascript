@@ -37,7 +37,8 @@ const NOT_ABOUT_THE_BODY: ReadonlySet<number> = new Set([401, 403, 404, 408]);
 
 export type PlatformCredential =
   | { readonly via: 'environment'; readonly variable: 'CLERK_PLATFORM_API_KEY' | 'CLERK_PLATFORM_API_KEY_FILE'; readonly key: Secret<'clerk-platform-key'> }
-  | { readonly via: 'one-password'; readonly key: Secret<'clerk-platform-key'> };
+  | { readonly via: 'one-password'; readonly key: Secret<'clerk-platform-key'> }
+  | { readonly via: 'proxy' };
 
 export function describeCredential(credential: PlatformCredential): string {
   switch (credential.via) {
@@ -45,6 +46,8 @@ export function describeCredential(credential: PlatformCredential): string {
       return credential.variable;
     case 'one-password':
       return '1Password';
+    case 'proxy':
+      return 'a key attached outside this machine (no key is in this process)';
     default: {
       const exhaustive: never = credential;
       return exhaustive;
@@ -102,13 +105,13 @@ interface Answer {
   readonly date: Date | null;
 }
 
-type Key = Secret<'clerk-platform-key'>;
+type Key = Secret<'clerk-platform-key'> | null;
 
 const noCredential = (tried: readonly string[], onAMac: string): VerifyFailure =>
   new VerifyFailure(
     'KEYS_MISSING',
     `no Clerk Platform API credential works here (${tried.join('; ')})`,
-    `on a Mac, ${onAMac}; anywhere, set CLERK_PLATFORM_API_KEY to the team key, or CLERK_PLATFORM_API_KEY_FILE to a file that holds it and that only you can read`,
+    `on a Mac, ${onAMac}; in a cloud environment, add an API credential for api.clerk.com with path prefix /v1/platform/; anywhere, set CLERK_PLATFORM_API_KEY to the team key, or CLERK_PLATFORM_API_KEY_FILE to a file that holds it and that only you can read`,
   );
 
 type KeyReference = Secret<'one-password-reference'>;
@@ -173,19 +176,19 @@ export function createPlatform(deps: PlatformDeps): Platform {
       sent += 1;
       const headers: Record<string, string> = { 'User-Agent': 'verify-instances' };
       if (body !== undefined) headers['Content-Type'] = 'application/json';
-      const call = (authorization: string) =>
+      const call = (authorization?: string) =>
         request(`${PLATFORM_API}${path}`, {
           method,
-          headers: { ...headers, Authorization: authorization },
+          headers: authorization === undefined ? headers : { ...headers, Authorization: authorization },
           ...(body === undefined ? {} : { body: JSON.stringify(body) }),
           signal: AbortSignal.timeout(30_000),
         });
       let response: Response;
       try {
-        response = await key.use('platform-authorization', (plain) => call(`Bearer ${plain}`));
+        response = await (key === null ? call() : key.use('platform-authorization', (plain) => call(`Bearer ${plain}`)));
       } catch (error) {
         const cause = (error as { cause?: { code?: string } }).cause?.code;
-        throw new VerifyFailure('NOT_READY', `Clerk's Platform API did not answer ${method} ${path}: ${(error as Error).message}${cause === undefined ? '' : ` (${cause})`}`, 'check network access to api.clerk.com');
+        throw new VerifyFailure('NOT_READY', `Clerk's Platform API did not answer ${method} ${path}: ${(error as Error).message}${cause === undefined ? '' : ` (${cause})`}`, 'check network access to api.clerk.com; a cloud environment needs it in its allowed domains');
       }
       const wait = RATE_LIMIT_WAITS[attempt];
       if (response.status === 429 && wait !== undefined) {
@@ -256,6 +259,14 @@ export function createPlatform(deps: PlatformDeps): Platform {
     }
     const tried = ['CLERK_PLATFORM_API_KEY and CLERK_PLATFORM_API_KEY_FILE are not set'];
 
+    const bare = await reaches(null);
+    if ('workspace' in bare) {
+      const credential: PlatformCredential = { via: 'proxy' };
+      if (bare.workspace !== VERIFICATION_WORKSPACE) throw wrongWorkspace(bare.workspace, credential);
+      return credential;
+    }
+    tried.push(`a request with no key gets ${bare.refusal}, so nothing outside this machine attaches one`);
+
     if (unreadable !== undefined) throw unreadable;
     if (reference === null) {
       tried.push('no 1Password reference is set');
@@ -303,7 +314,7 @@ export function createPlatform(deps: PlatformDeps): Platform {
 
   async function open(): Promise<OpenWorkspace> {
     const credential = await resolve();
-    const key: Key = credential.key;
+    const key: Key = credential.via === 'proxy' ? null : credential.key;
     let checkedAt = 0;
 
     async function list(): Promise<Listing> {

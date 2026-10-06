@@ -1,7 +1,6 @@
+import { PLATFORM_CREDENTIAL_VARIABLES } from './launch.mjs';
 import type { Secret } from './secret.ts';
 import type { PublishableKey } from './types.ts';
-
-export const PLATFORM_CREDENTIAL_VARIABLES: readonly string[] = ['CLERK_PLATFORM_API_KEY', 'CLERK_PLATFORM_API_KEY_FILE', 'VERIFY_PLATFORM_KEY_REFERENCE'];
 
 export interface InstanceKeys {
   readonly pk: PublishableKey;

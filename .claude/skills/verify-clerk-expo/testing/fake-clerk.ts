@@ -46,6 +46,8 @@ export interface FakeRefusal {
 
 export interface FakeClerkOptions {
   readonly workspace?: string;
+  readonly attachesKey?: boolean;
+  readonly replacesAuthorizationOnCom?: boolean;
   readonly now?: () => number;
 }
 
@@ -192,10 +194,12 @@ export function fakeClerk(options: FakeClerkOptions = {}) {
     requests.push({ method, url: `${url.host}${url.pathname}${url.search}`, authorization: sent, body });
     const onCom = url.host === 'api.clerk.com';
     if (onCom && url.pathname.startsWith('/v1/platform/')) {
-      return platform(method, `${url.pathname.slice('/v1/platform'.length)}${url.search}`, sent, body);
+      const authorization = options.attachesKey === true ? `Bearer ${PLATFORM_KEY}` : sent;
+      return platform(method, `${url.pathname.slice('/v1/platform'.length)}${url.search}`, authorization, body);
     }
     if (onCom || url.host === 'api.clerk.dev') {
-      const application = live().find((candidate) => sent === `Bearer ${candidate.sk}`);
+      const authorization = onCom && options.replacesAuthorizationOnCom === true ? `Bearer ${PLATFORM_KEY}` : sent;
+      const application = live().find((candidate) => authorization === `Bearer ${candidate.sk}`);
       if (application === undefined || state.refuseInstanceKeys) return error(401, 'clerk_key_invalid');
       if (state.keyRefusedTimes > 0) {
         state.keyRefusedTimes -= 1;

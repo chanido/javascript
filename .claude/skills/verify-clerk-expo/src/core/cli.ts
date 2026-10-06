@@ -2,9 +2,10 @@ import { execFileSync } from 'node:child_process';
 import { basename, dirname, isAbsolute, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { run as defaultRunner } from './exec.ts';
-import { PLATFORM_CREDENTIAL_VARIABLES } from './keys.ts';
+import { PLATFORM_CREDENTIAL_VARIABLES } from './launch.mjs';
 import { redact } from './secret.ts';
 import { leaseLine } from './devices.ts';
+import { RUNNER_LABEL } from './remote/protocol.ts';
 import { count, describeState } from './state.ts';
 import { createInstances } from './instances/instances.ts';
 import { verbs, type Deps } from './verbs.ts';
@@ -15,6 +16,7 @@ import {
   CLI_PLACEHOLDER,
   RETRYABLE,
   VerifyFailure,
+  type BackendKind,
   type Command,
   type DoctorCheck,
   type HostAdapter,
@@ -29,9 +31,9 @@ import {
 const VERBS: readonly Verb[] = ['doctor', 'up', 'run', 'screen', 'attach', 'down'];
 
 const USAGE_FIX = [
-  '{cli} doctor [--platform p] [--live]',
-  '{cli} up [--platform p] [--wait <seconds>]',
-  '{cli} run <feature|feature/spec|path.e2e.ts>... | --all [--platform p] [--skip form-entry] [--include known-bug] [--grep re] [--no-video] [--wait <seconds>]',
+  '{cli} doctor [--platform p] [--backend auto|local|remote] [--live [--runner <label>]]',
+  '{cli} up [--platform p] [--backend auto|local|remote] [--runner <label>] [--wait <seconds>]',
+  '{cli} run <feature|feature/spec|path.e2e.ts>... | --all [--platform p] [--backend auto|local|remote] [--runner <label>] [--skip form-entry] [--include known-bug] [--grep re] [--no-video] [--wait <seconds>]',
   '{cli} screen [--platform p] [--png]',
   '{cli} attach <run-id> --pr <n> [--screenshot label]...',
   '{cli} down [--platform p] [--stale] [--dry-run]',
@@ -43,9 +45,9 @@ const usage = (message: string) => new VerifyFailure('USAGE', message, USAGE_FIX
 type FlagSpec = Readonly<Record<string, 'value' | 'bool' | 'list'>>;
 
 const FLAGS: Readonly<Record<Verb, FlagSpec>> = {
-  doctor: { platform: 'value', live: 'bool' },
-  up: { platform: 'value', wait: 'value' },
-  run: { platform: 'value', all: 'bool', skip: 'list', include: 'list', grep: 'value', 'no-video': 'bool', wait: 'value' },
+  doctor: { platform: 'value', backend: 'value', runner: 'value', live: 'bool' },
+  up: { platform: 'value', backend: 'value', runner: 'value', wait: 'value' },
+  run: { platform: 'value', backend: 'value', runner: 'value', all: 'bool', skip: 'list', include: 'list', grep: 'value', 'no-video': 'bool', wait: 'value' },
   screen: { platform: 'value', png: 'bool' },
   attach: { pr: 'value', screenshot: 'list' },
   down: { platform: 'value', stale: 'bool', 'dry-run': 'bool' },
@@ -55,6 +57,17 @@ function platformFlag(value: string | undefined): Platform | undefined {
   if (value === undefined) return undefined;
   if (value === 'ios' || value === 'android') return value;
   throw usage(`--platform must be ios or android, not ${value}`);
+}
+
+function backendFlag(value: string | undefined): BackendKind | undefined {
+  if (value === undefined || value === 'auto') return undefined;
+  if (value === 'local' || value === 'remote') return value;
+  throw usage(`--backend must be auto, local, or remote, not ${value}`);
+}
+
+function runnerFlag(value: string | undefined): string | undefined {
+  if (value !== undefined && !RUNNER_LABEL.test(value)) throw usage(`--runner must be a runner label such as ubuntu-latest, not ${value}`);
+  return value;
 }
 
 function positiveInt(flag: string, value: string | undefined, fallback: number | undefined): number {
@@ -106,12 +119,15 @@ export function parseArgv(argv: readonly string[]): Invocation {
     if (positionals.length > 0) throw usage(`{cli} ${verb} takes no arguments, got ${positionals.join(' ')}`);
   };
   const platform = platformFlag(values.get('platform'));
-  const base = { ...(platform === undefined ? {} : { platform }) };
+  const backend = backendFlag(values.get('backend'));
+  const runner = runnerFlag(values.get('runner'));
+  const base = { ...(platform === undefined ? {} : { platform }), ...(backend === undefined ? {} : { backend }), ...(runner === undefined ? {} : { runner }) };
 
   let command: Command;
   switch (verb) {
     case 'doctor':
       noPositionals();
+      if (runner !== undefined && !bools.has('live')) throw usage('--runner names the runner of the session that doctor --live starts; add --live or drop --runner');
       command = { verb, ...base, live: bools.has('live') };
       break;
     case 'up':

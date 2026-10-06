@@ -49,7 +49,7 @@ function typeIntoFocused(context: RunContext, target: RunTarget, text: string): 
   const device = agentDeviceFor(JSON.parse(readFileSync(target.leaseFile, 'utf8')) as Lease);
   return new Promise((resolve, reject) => {
     const bin = join(dirname(context.workspace), 'node_modules', '.bin', 'agent-device');
-    const env = { ...process.env, AGENT_DEVICE_STATE_DIR: agentDeviceStateDir(context.workspace) };
+    const env = { ...process.env, AGENT_DEVICE_STATE_DIR: agentDeviceStateDir(context.workspace), ...device.env };
     execFile(bin, ['type', text, '--session', e2eWorkerSession(context), ...device.selector], { env }, (error, _stdout, stderr) => {
       if (error === null) resolve();
       else reject(new Error(`agent-device type failed: ${stderr.trim() || error.message}`));

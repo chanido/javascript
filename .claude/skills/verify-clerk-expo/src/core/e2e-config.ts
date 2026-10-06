@@ -2,8 +2,9 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { E2EConfig } from 'e2e';
-import { mobile } from '@e2e-dev/mobile';
-import { VerifyFailure, type Lease, type RunContext } from './types.ts';
+import { mobile, type DeviceProvider } from '@e2e-dev/mobile';
+import { Secret } from './secret.ts';
+import { VerifyFailure, type Lease, type RemoteLease, type RunContext } from './types.ts';
 import { agentDeviceStateDir } from './workspace.ts';
 
 export const ASSERTION_TIMEOUT_MS = 10_000;
@@ -31,14 +32,35 @@ export function loadRunContext(): RunContext {
   return context;
 }
 
+function remoteDevice(lease: RemoteLease): DeviceProvider {
+  const token = new Secret('session-bearer', readFileSync(lease.tokenFile, 'utf8').trim());
+  return {
+    name: `remote-${lease.provider}`,
+    acquire: async () => ({
+      id: lease.session,
+      deviceId: lease.deviceId,
+      device: lease.deviceName,
+      daemon: token.use('e2e-provider-lease', (authToken) => ({ baseUrl: `${lease.baseUrl}/agent-device`, authToken })),
+    }),
+    release: async () => {},
+  };
+}
+
 export function composeE2EConfig(context: RunContext): E2EConfig {
   process.env.AGENT_DEVICE_STATE_DIR ??= agentDeviceStateDir(context.workspace);
   const targets = context.targets.map((target) => {
     const lease = JSON.parse(readFileSync(target.leaseFile, 'utf8')) as Lease;
+    if (lease.backend === 'remote') {
+      return {
+        name: target.platform,
+        engine: mobile({ platform: target.platform, device: remoteDevice(lease), session: context.agentDeviceSession, videoTouches: false }),
+        app: { bundleId: target.appId },
+      };
+    }
     return {
       name: target.platform,
       engine: mobile({ platform: target.platform, device: [lease.deviceId], session: context.agentDeviceSession, videoTouches: false }),
-      app: { bundleId: target.appId, appPath: target.appPath },
+      app: { bundleId: target.appId, ...(target.appPath === null ? {} : { appPath: target.appPath }) },
     };
   });
   return {

@@ -85,9 +85,10 @@ export interface SecretLike {
   use<T>(sink: SecretSink, fn: (plain: string) => T): T;
 }
 
-export type SecretSink = 'bapi-authorization' | 'launch-argument' | 'platform-authorization' | 'instance-keys-file' | 'one-password-read';
+export type SecretSink = 'bapi-authorization' | 'launch-argument' | 'agent-device-daemon' | 'e2e-provider-lease' | 'github-authorization' | 'session-bearer' | 'platform-authorization' | 'instance-keys-file' | 'one-password-read';
 
-export type BackendKind = 'local';
+export type BackendKind = 'local' | 'remote';
+export type RemoteProvider = 'github-actions';
 export type OptInTag = 'form-entry' | 'known-bug';
 export const FORM_ENTRY_TAG = 'form-entry' satisfies OptInTag;
 export const KNOWN_BUG_TAG = 'known-bug' satisfies OptInTag;
@@ -95,12 +96,14 @@ export const KNOWN_BUG_TAG = 'known-bug' satisfies OptInTag;
 export type SpecSelection = { readonly all: true } | { readonly selectors: readonly string[] };
 
 export type Command =
-  | { readonly verb: 'doctor'; readonly platform?: Platform; readonly live: boolean }
-  | { readonly verb: 'up'; readonly platform?: Platform; readonly waitSeconds: number }
+  | { readonly verb: 'doctor'; readonly platform?: Platform; readonly backend?: BackendKind; readonly runner?: string; readonly live: boolean }
+  | { readonly verb: 'up'; readonly platform?: Platform; readonly backend?: BackendKind; readonly runner?: string; readonly waitSeconds: number }
   | {
       readonly verb: 'run';
       readonly selection: SpecSelection;
       readonly platform?: Platform;
+      readonly backend?: BackendKind;
+      readonly runner?: string;
       readonly skip: readonly OptInTag[];
       readonly include: readonly OptInTag[];
       readonly grep?: string;
@@ -152,7 +155,8 @@ export type DoctorCheckId =
   | 'node' | 'xcode' | 'jdk' | 'e2e-pins' | 'template' | 'proxy-trust'
   | 'settings' | 'build' | 'gh-attach' | 'core-drift' | 'stale-claims' | 'feature-map' | 'agent-device-daemon' | 'lane-ports'
   | 'instances' | 'clerk-api'
-  | 'live-instance';
+  | 'backend' | 'remote-env' | 'git-fetch' | 'git-head' | 'git-push' | 'github-rest' | 'remote-commit' | 'remote-trigger' | 'remote-channel' | 'tunnel-egress' | 'clerk-egress' | 'remote-sessions'
+  | `live-${string}`;
 
 interface DoctorCheckBase {
   readonly id: DoctorCheckId;
@@ -175,6 +179,7 @@ export interface LeaseView {
   readonly backend: BackendKind;
   readonly device: string;
   readonly installedBuild: BuildKey | null;
+  readonly expiresAt: string | null;
   readonly renewed: boolean;
 }
 
@@ -257,15 +262,22 @@ export interface SpecRef {
   readonly feature: FeatureName | null;
 }
 
-export type BuildSource = 'local';
-
-export interface BuiltApp {
+interface BuiltAppBase {
   readonly platform: Platform;
   readonly key: BuildKey;
   readonly appId: string;
-  readonly path: ScratchPath;
-  readonly source: BuildSource;
 }
+export interface LocalBuild extends BuiltAppBase {
+  readonly source: 'local';
+  readonly path: ScratchPath;
+}
+export interface SessionBuild extends BuiltAppBase {
+  readonly source: 'github-actions';
+  readonly path: null;
+  readonly sourceSha: string;
+}
+export type BuiltApp = LocalBuild | SessionBuild;
+export type BuildSource = BuiltApp['source'];
 
 export type DeviceName = `verify-${Platform}-${number}`;
 
@@ -281,7 +293,20 @@ export interface LocalLease extends LeaseBase {
   readonly deviceId: string;
   readonly claimNonce: string;
 }
-export type Lease = LocalLease;
+export interface RemoteLease extends LeaseBase {
+  readonly backend: 'remote';
+  readonly provider: RemoteProvider;
+  readonly session: string;
+  readonly providerRef: string;
+  readonly baseUrl: string;
+  readonly tokenFile: string;
+  readonly deviceId: string;
+  readonly deviceName: string;
+  readonly runner: string;
+  readonly expiresAt: string;
+  readonly builtSha: string | null;
+}
+export type Lease = LocalLease | RemoteLease;
 
 export interface SeededUser {
   readonly id: string;
@@ -291,7 +316,7 @@ export interface SeededUser {
 
 export type LedgerEntry =
   | { readonly id: string; readonly kind: 'lease-intent'; readonly platform: Platform; readonly backend: BackendKind; readonly worktree: string }
-  | { readonly id: string; readonly kind: 'lease-held'; readonly platform: Platform; readonly backend: BackendKind; readonly deviceId: string | null }
+  | { readonly id: string; readonly kind: 'lease-held'; readonly platform: Platform; readonly backend: BackendKind; readonly sessionId: string | null; readonly deviceId: string | null }
   | { readonly id: string; readonly kind: 'application'; readonly name: string; readonly workspace: string }
   | { readonly id: string; readonly kind: 'identity'; readonly run: RunId; readonly email: TestEmail }
   | { readonly id: string; readonly kind: 'user'; readonly run: RunId; readonly userId: string; readonly email: TestEmail }
@@ -323,6 +348,7 @@ export interface EvidenceRecord {
   readonly dirty: boolean;
   readonly platform: Platform;
   readonly backend: BackendKind;
+  readonly remote: { readonly provider: RemoteProvider; readonly runner: string; readonly builtSha: string | null } | null;
   readonly device: string;
   readonly build: BuildKey;
   readonly results: readonly SpecResult[];
@@ -391,7 +417,7 @@ export interface HostRuntime {
 export interface RunTarget {
   readonly platform: Platform;
   readonly appId: string;
-  readonly appPath: string;
+  readonly appPath: string | null;
   readonly leaseFile: string;
   readonly entry: HostEntry;
 }
@@ -436,6 +462,8 @@ export interface AcquireRequest {
   readonly platform: Platform;
   readonly worktree: string;
   readonly waitSeconds: number;
+  readonly app: BuiltApp;
+  readonly runner?: string;
   readonly retryWith: string;
   readonly progress: (line: string) => void;
 }
@@ -446,29 +474,38 @@ export interface ProcessRef {
 }
 
 export interface Recording {
-  readonly process: ProcessRef;
+  readonly process: ProcessRef | null;
   stop(): Promise<EvidencePath>;
 }
 
 export interface Availability {
   readonly usable: boolean;
   readonly why: string;
+  readonly fix?: string;
+}
+
+export interface DoctorOptions {
+  readonly live: boolean;
+  readonly runner?: string;
+  readonly worktree: string;
+  readonly progress: (line: string) => void;
 }
 
 export interface DeviceBackend<L extends Lease = Lease> {
   readonly kind: BackendKind;
   readonly platform: Platform;
   availability(): Availability;
+  sourceCommit?(input: { readonly worktree: string; readonly inputs: readonly string[] }): Promise<string>;
   acquire(request: AcquireRequest): Promise<L>;
-  check(lease: L): Promise<'held' | 'lost'>;
-  install(lease: L, app: BuiltApp): Promise<L>;
+  check(lease: L): Promise<'held' | 'lost' | 'expiring'>;
+  install(lease: L, app: BuiltApp, progress: (line: string) => void): Promise<L>;
   release(lease: L): Promise<void>;
   reapable(owner?: string): Promise<readonly L[]>;
   startRecording(lease: L, into: EvidencePath): Promise<Recording>;
   logs(lease: L, since: Date, extraPredicate?: string): Promise<string>;
   describe(lease: L): string;
   readonly requirement: string;
-  doctorChecks(): Promise<{ readonly toolchain: readonly DoctorCheck[]; readonly device: readonly DoctorCheck[] }>;
+  doctorChecks(options: DoctorOptions): Promise<{ readonly toolchain: readonly DoctorCheck[]; readonly device: readonly DoctorCheck[] }>;
 }
 
 export const LOCAL_POOL: Readonly<Record<Platform, number>> = { ios: 4, android: 2 };
@@ -480,7 +517,7 @@ interface HostBase<S extends string> {
   readonly screens: readonly S[];
   readonly githubRepo: string;
   appId(platform: Platform): string;
-  buildInputs(platform: Platform): readonly string[];
+  buildInputs(platform: Platform, backend: BackendKind): readonly string[];
   build(platform: Platform, key: BuildKey, into: ScratchPath, progress: (line: string) => void): Promise<BuiltApp>;
   readonly logPredicates?: Readonly<Partial<Record<Platform, string>>>;
   readonly features: readonly string[];

@@ -152,7 +152,7 @@ describe('platform credential', () => {
   });
 
   it('fails on a set variable that does not work, with no fall-through', async () => {
-    const { ran, platform } = open({ CLERK_PLATFORM_API_KEY: 'ak_someOtherKey' });
+    const { ran, platform } = open({ CLERK_PLATFORM_API_KEY: 'ak_someOtherKey' }, { attachesKey: false });
     await assert.rejects(platform.open(), (error: VerifyFailure) => error.code === 'KEYS_MISSING' && /CLERK_PLATFORM_API_KEY is set/.test(error.message));
     assert.deepEqual(ran, []);
   });
@@ -164,6 +164,14 @@ describe('platform credential', () => {
     assert.equal((await open({ CLERK_PLATFORM_API_KEY_FILE: file }).platform.open()).credential.via, 'environment');
     chmodSync(file, 0o644);
     await assert.rejects(open({ CLERK_PLATFORM_API_KEY_FILE: file }).platform.open(), (error: VerifyFailure) => error.fix === `chmod 600 ${file}`);
+  });
+
+  it('holds no key when something outside the machine attaches one', async () => {
+    const { fake, ran, platform } = open({}, { attachesKey: true });
+    const workspace = await platform.open();
+    assert.equal(workspace.credential.via, 'proxy');
+    assert.ok(fake.requests.every((request) => request.authorization === null), 'this process sent no Authorization header');
+    assert.deepEqual(ran, [], '1Password is not asked when the proxy already works');
   });
 
   it('asks 1Password last, once, by reference, and never says what the reference is', async () => {
@@ -205,10 +213,10 @@ describe('platform credential', () => {
       const { ran, platform } = open(env, {}, op({ code: 0, stdout: PLATFORM_KEY, stderr: '' }));
       await assert.rejects(platform.open(), (error: VerifyFailure) => {
         assert.equal(error.code, 'KEYS_MISSING');
-        assert.equal(error.message, 'no Clerk Platform API credential works here (CLERK_PLATFORM_API_KEY and CLERK_PLATFORM_API_KEY_FILE are not set; no 1Password reference is set)');
+        assert.equal(error.message, 'no Clerk Platform API credential works here (CLERK_PLATFORM_API_KEY and CLERK_PLATFORM_API_KEY_FILE are not set; a request with no key gets 401 authorization_header_format_invalid, so nothing outside this machine attaches one; no 1Password reference is set)');
         assert.equal(
           error.fix,
-          `on a Mac, put the team key's 1Password secret reference (shape ${REFERENCE_SHAPE}; the team's private setup note has the real one) in VERIFY_PLATFORM_KEY_REFERENCE or as the one line of ~/.verify/clerk-platform-key-reference, with the 1Password CLI installed and its desktop app integration on; anywhere, set CLERK_PLATFORM_API_KEY to the team key, or CLERK_PLATFORM_API_KEY_FILE to a file that holds it and that only you can read`,
+          `on a Mac, put the team key's 1Password secret reference (shape ${REFERENCE_SHAPE}; the team's private setup note has the real one) in VERIFY_PLATFORM_KEY_REFERENCE or as the one line of ~/.verify/clerk-platform-key-reference, with the 1Password CLI installed and its desktop app integration on; in a cloud environment, add an API credential for api.clerk.com with path prefix /v1/platform/; anywhere, set CLERK_PLATFORM_API_KEY to the team key, or CLERK_PLATFORM_API_KEY_FILE to a file that holds it and that only you can read`,
         );
         return true;
       });
@@ -235,7 +243,9 @@ describe('platform credential', () => {
     const malformed = { VERIFY_PLATFORM_KEY_REFERENCE: 'Fake Vault/fake item/credential' };
     const keyed = open({ ...malformed, CLERK_PLATFORM_API_KEY: PLATFORM_KEY });
     assert.equal((await keyed.platform.open()).credential.via, 'environment');
-    assert.deepEqual(keyed.ran, []);
+    const proxied = open({ HOME: homeWith('Fake Vault/fake item/credential\n') }, { attachesKey: true });
+    assert.equal((await proxied.platform.open()).credential.via, 'proxy');
+    assert.deepEqual([...keyed.ran, ...proxied.ran], []);
   });
 
   it('says which reference file it cannot read and what to do, and only when 1Password is the source left to try', async () => {
@@ -1294,7 +1304,7 @@ describe('a machine with no Platform API credential', () => {
 
   it('gets no access to an instance and creates nothing, with every way to supply a key named', async () => {
     const w = world({ env: {} });
-    const named = (error: VerifyFailure) => error.code === 'KEYS_MISSING' && ['1Password CLI', 'CLERK_PLATFORM_API_KEY', 'CLERK_PLATFORM_API_KEY_FILE'].every((part) => error.fix.includes(part));
+    const named = (error: VerifyFailure) => error.code === 'KEYS_MISSING' && ['1Password CLI', 'path prefix /v1/platform/', 'CLERK_PLATFORM_API_KEY', 'CLERK_PLATFORM_API_KEY_FILE'].every((part) => error.fix.includes(part));
     await assert.rejects(w.instances.access(), named);
     await assert.rejects(w.instances.ensure(NOTHING_NEW, quiet), named);
     assert.equal(w.clerk.applications.length, 0);
@@ -1356,6 +1366,16 @@ describe('Backend API host', () => {
     const badKey = answering({ 'api.clerk.com': 401, 'api.clerk.dev': 401 });
     await assert.rejects(badKey.backend.apiHost(), /answered 401 \(clerk_key_invalid\)/);
     assert.deepEqual(badKey.notes, []);
+  });
+
+  it('brings an instance up in a sandbox whose proxy holds the key and rewrites api.clerk.com', async () => {
+    const w = world({ env: {}, clerk: { attachesKey: true, replacesAuthorizationOnCom: true } });
+    await w.instances.ensure(NOTHING_NEW, w.say);
+    assert.ok(w.lines.some((line) => line.startsWith('instances a key attached outside this machine (no key is in this process) reaches')));
+    assert.ok(w.lines.includes('clerk   Backend API on api.clerk.dev'));
+    assert.ok(w.clerk.platformRequests().every((request) => request.authorization === null));
+    await w.open().finish(w.workspace, { keepApplications: false }, quiet);
+    assert.equal(w.clerk.live().length, 0);
   });
 });
 

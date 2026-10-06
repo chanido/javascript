@@ -145,6 +145,7 @@ export function localIosBackend(options: { readonly os?: NodeJS.Platform } = {})
     },
 
     async install(lease, app) {
+      if (app.path === null) throw new VerifyFailure('BUILD_FAILED', `build ${app.key} was made on another machine, so there is no app here to install on ${lease.deviceName}`, '{cli} down, then {cli} up');
       await simctl(['install', lease.deviceId, app.path], `simctl install on ${lease.deviceName}`);
       return lease;
     },

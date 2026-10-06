@@ -8,13 +8,15 @@ import { isRunning, run } from '../src/core/exec.ts';
 import { encodeLaunchArguments } from '../src/core/state.ts';
 import type { EvidencePath, LaunchId, LocalLease, PublishableKey, RunId, StorageScope } from '../src/core/types.ts';
 import { takeSlot } from '../src/core/claims.ts';
-import { LOG_FILTER, RECORD_SIZE, emulatorArgs, logFilter, logcatSince } from '../src/platform/android/emulator.ts';
+import { LANE_FAILED, LANE_READY, LOG_FILTER, RECORD_SIZE, collectRecordingArgs, emulatorArgs, logFilter, logcatSince, stopScreenrecordArgs, waitForLane } from '../src/platform/android/emulator.ts';
 import { lanePort, localAndroidBackend, laneSerial, parseAdbDevices, startScreenrecord } from '../src/platform/android/local.ts';
 import { ensureLaneAvd, jdkCheck, localAvailability, resolveJavaHome, sdkRoot, systemImage, type Machine } from '../src/platform/android/sdk.ts';
 
 function machineHomedInScratch(dir: string, overrides: Partial<Machine> = {}): Machine {
   return { os: 'darwin', arch: 'arm64', home: dir, env: {}, kvm: join(dir, 'kvm'), ...overrides };
 }
+
+const doctorOptions = { live: false, worktree: '/nowhere', progress: () => undefined };
 
 function fakeJdk(root: string, version: string): string {
   const home = join(root, `jdk-${version}`);
@@ -208,7 +210,7 @@ describe('android lane ownership', () => {
 
   it('doctor flags a foreign emulator on a lane port with a kill command for its owner', async () => {
     const { backend } = setup('Pixel_9_Pro', () => '');
-    const lanePorts = (await backend.doctorChecks()).device.find((c) => c.id === 'lane-ports');
+    const lanePorts = (await backend.doctorChecks(doctorOptions)).device.find((c) => c.id === 'lane-ports');
     assert.equal(lanePorts?.ok, false);
     assert.match(lanePorts?.detail ?? '', /emulator-5560 \(Pixel_9_Pro, not a verify lane\)/);
     assert.match(lanePorts?.fix ?? '', /^adb -s emulator-5560 emu kill, but only if that emulator is yours/);
@@ -216,14 +218,14 @@ describe('android lane ownership', () => {
 
   it('doctor passes a lane port that holds this claim\'s own lane', async () => {
     const { backend } = setup('Clerk_Verify_Pixel', (own) => own);
-    assert.equal((await backend.doctorChecks()).device.find((c) => c.id === 'lane-ports')?.ok, true);
+    assert.equal((await backend.doctorChecks(doctorOptions)).device.find((c) => c.id === 'lane-ports')?.ok, true);
   });
 
   it('reports a foreign emulator on a lane port in POOL_FULL instead of claiming it', async () => {
     const { backend, lease, dir } = setup('Pixel_9_Pro', () => '');
     await backend.release(lease);
     takeSlot(join(dir, 'claims'), 'android', 2, 0, join(dir, 'other'));
-    await assert.rejects(backend.acquire({ platform: 'android', worktree: join(dir, 'worktree'), waitSeconds: 0, retryWith: '.claude/skills/verify-clerk-android/bin/control-clerk-android up --wait <seconds>', progress: () => undefined }), {
+    await assert.rejects(backend.acquire({ platform: 'android', worktree: join(dir, 'worktree'), waitSeconds: 0, app: null as never, retryWith: '.claude/skills/verify-clerk-android/bin/control-clerk-android up --wait <seconds>', progress: () => undefined }), {
       code: 'POOL_FULL',
       message: /emulator-5560 \(Pixel_9_Pro, not a verify lane\), verify-android-2 \(held by .*other\)/,
       fix: /`adb -s emulator-5560 emu kill` frees a lane, but only if that emulator is yours/,
@@ -295,7 +297,7 @@ describe('android lanes verify spawned', () => {
     await new Promise((resolve) => setTimeout(resolve, 300));
     writeFileSync(join(emulatorsDir, 'android-1.pid'), JSON.stringify({ ...emulator, nonce: claim.nonce }));
     const backend = localAndroidBackend({ claimsDir: join(dir, 'claims'), adbBin, emulatorBin: fakeTool(dir, 'emulator', ['echo Clerk_Verify_Pixel']), emulatorsDir, machine: machineHomedInScratch(dir) });
-    assert.equal((await backend.doctorChecks()).device.find((c) => c.id === 'lane-ports')?.ok, true);
+    assert.equal((await backend.doctorChecks(doctorOptions)).device.find((c) => c.id === 'lane-ports')?.ok, true);
     process.kill(-emulator.pid, 'SIGKILL');
   });
 
@@ -348,12 +350,14 @@ describe('whether this machine can run the emulator', () => {
     const none = localAvailability(machineHomedInScratch(dir));
     assert.equal(none.usable, false);
     assert.match(none.why, /^no Android SDK with an emulator and adb \(looked in .*Library\/Android\/sdk\)$/);
+    assert.match(none.fix ?? '', /ANDROID_HOME/);
 
     const linux = machineHomedInScratch(dir, { os: 'linux', arch: 'x64' });
     writeFileSync(linux.kvm, '');
     const root = fakeSdk(dir, linux, { image: false });
     const noImage = localAvailability({ ...linux, env: { ANDROID_HOME: root } });
     assert.equal(noImage.why, `the SDK at ${root} has no system image system-images;android-36;google_apis;x86_64`);
+    assert.match(noImage.fix ?? '', /^sdkmanager "system-images;android-36;google_apis;x86_64"/);
   });
 
   it('on Linux needs a /dev/kvm this user can open for reading and writing', () => {
@@ -372,6 +376,7 @@ describe('whether this machine can run the emulator', () => {
       const closed = localAvailability(withSdk);
       assert.equal(closed.usable, false);
       assert.match(closed.why, /^this user cannot open .*kvm for reading and writing/);
+      assert.match(closed.fix ?? '', /udev/);
     }
 
     chmodSync(linux.kvm, 0o666);
@@ -433,6 +438,7 @@ describe('whether this machine can run the emulator', () => {
     const found = localAvailability({ ...mac, env: { ANDROID_HOME: root } });
     assert.equal(found.usable, false);
     assert.match(found.why, /has no system image system-images;android-35;google_apis_playstore;arm64-v8a, which the Clerk_Verify_Pixel AVD names$/);
+    assert.match(found.fix ?? '', /^sdkmanager "system-images;android-35;google_apis_playstore;arm64-v8a"/, 'the fix installs the image that AVD names');
   });
 
   it('looks for the AVD where the emulator does: ANDROID_AVD_HOME, then ANDROID_USER_HOME, and an empty value is unset', () => {
@@ -446,5 +452,31 @@ describe('whether this machine can run the emulator', () => {
     assert.ok(written({ ANDROID_USER_HOME: join(dir, 'user') }).at(join(dir, 'user', 'avd')));
     const unset = written({ ANDROID_AVD_HOME: '' });
     assert.ok(unset.at(join(unset.home, '.android', 'avd')));
+  });
+});
+
+describe('what a remote session runs on its emulator', () => {
+  it('holds the install until the lane boot has finished, and fails the build with the boot\'s own error', async () => {
+    const work = mkdtempSync(join(tmpdir(), 'verify-recipe-'));
+    const wait = waitForLane(work);
+    const waiting = run(wait.command, wait.args);
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    writeFileSync(join(work, LANE_READY), 'emulator-5560\n');
+    assert.equal((await waiting).code, 0);
+
+    const failed = mkdtempSync(join(tmpdir(), 'verify-recipe-'));
+    writeFileSync(join(failed, LANE_FAILED), 'no KVM here\n');
+    const refuse = waitForLane(failed);
+    const result = await run(refuse.command, refuse.args);
+    assert.equal(result.code, 1);
+    assert.match(result.stdout, /the emulator did not boot: no KVM here/);
+  });
+
+  it('stops screenrecord on the device and waits for it to exit, then pulls the file and deletes it there', () => {
+    assert.match(stopScreenrecordArgs.join(' '), /^shell pkill -INT screenrecord; .*while pidof screenrecord/);
+    assert.deepEqual(collectRecordingArgs('/data/local/tmp/verify-session.mp4', '/work/recording.mp4'), [
+      ['pull', '/data/local/tmp/verify-session.mp4', '/work/recording.mp4'],
+      ['shell', 'rm', '-f', '/data/local/tmp/verify-session.mp4'],
+    ]);
   });
 });

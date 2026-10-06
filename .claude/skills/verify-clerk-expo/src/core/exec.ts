@@ -17,6 +17,7 @@ export interface ExecOptions {
 export interface CommandLine {
   readonly command: string;
   readonly args: readonly string[];
+  readonly cwd?: string;
 }
 
 export type Runner = (command: string, args: readonly string[], options?: ExecOptions) => Promise<ExecResult>;

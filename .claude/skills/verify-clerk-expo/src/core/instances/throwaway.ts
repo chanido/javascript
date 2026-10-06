@@ -218,7 +218,7 @@ export function createThrowaway(deps: ThrowawayDeps): Throwaway {
   }
 
   const unanswered = (app: Held, status: number): VerifyFailure =>
-    new VerifyFailure('NOT_READY', `the Frontend API of ${app.keys.application} (${app.entry.name}) answered ${status}`, 'rerun');
+    new VerifyFailure('NOT_READY', `the Frontend API of ${app.keys.application} (${app.entry.name}) answered ${status}`, 'rerun; a cloud environment needs *.clerk.accounts.dev in its allowed domains');
 
   const standardRefused = (said: string): VerifyFailure =>
     new VerifyFailure('INSTANCE_MISCONFIGURED', `Clerk's Platform API refused the standard settings in ${STANDARD_FILE}: ${said}`, 'the standard file needs a change of its own (shared core); the spec is not at fault');
@@ -248,7 +248,7 @@ export function createThrowaway(deps: ThrowawayDeps): Throwaway {
 
   function notShown(app: Held, to: Settings, status: number, compared: EnvironmentComparison | null, afterMs: number): VerifyFailure {
     const id = app.keys.application;
-    if (compared === null) return new VerifyFailure('NOT_READY', `the Frontend API of ${id} (${app.entry.name}) answered ${status} after its settings were changed`, 'rerun');
+    if (compared === null) return new VerifyFailure('NOT_READY', `the Frontend API of ${id} (${app.entry.name}) answered ${status} after its settings were changed`, 'rerun; a cloud environment needs *.clerk.accounts.dev in its allowed domains');
     if (to.declared === null) {
       return new VerifyFailure(
         'INSTANCE_MISCONFIGURED',

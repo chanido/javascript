@@ -85,11 +85,22 @@ describe('lease flow', () => {
     assert.equal(existsSync(deps.workspace.home), false);
   });
 
-  it('doctor names the platform in the build fix when the host has more than one', async () => {
+  it('doctor names the platform in the build fix when the host has more than one, and the backend when the command forced it', async () => {
     const { deps } = setup(0);
     const fix = async (host: { readonly platforms?: HostAdapter['platforms'] }, command: Partial<Extract<Command, { verb: 'doctor' }>>) => (await doctor({ ...deps, host: { ...deps.host, ...host } }, { verb: 'doctor', live: false, ...command })).checks.find((c) => c.id === 'build')!.fix;
     assert.equal(await fix({}, {}), '{cli} up');
     assert.equal(await fix({ platforms: ['ios', 'android'] }, {}), '{cli} up --platform ios');
+    assert.equal(await fix({ platforms: ['ios', 'android'] }, { backend: 'local' }), '{cli} up --platform ios --backend local');
+    assert.equal(await fix({}, { backend: 'local' }), '{cli} up --backend local');
+  });
+
+  it('asks the host for the build inputs of the backend that was chosen', async () => {
+    const { deps } = setup(0);
+    const asked: string[] = [];
+    const host = { ...deps.host, buildInputs: (platform: string, backend: string) => (asked.push(`${platform} ${backend}`), ['app.swift']) } as HostAdapter;
+    await doctor({ ...deps, host }, { verb: 'doctor', live: false });
+    await up({ ...deps, host }, { verb: 'up', waitSeconds: 0 });
+    assert.deepEqual([...new Set(asked)], ['ios local']);
   });
 
   it('doctor only warns about a gh that cannot attach, and says what attach then cannot do', async () => {
@@ -102,6 +113,16 @@ describe('lease flow', () => {
       detail: "this gh has no `gh pr comment --attach`, so `{cli} attach` cannot post a run's video and screenshots from this machine",
       fix: 'install a gh build whose `gh pr comment` has --attach',
     });
+  });
+
+  it('refuses --runner with the local backend as a usage error, before it builds, leases, or checks anything', async () => {
+    const { deps, events } = setup(0);
+    const usage = (error: VerifyFailure) => error.code === 'USAGE' && error.message === '--runner names a CI runner and the local backend has none' && error.fix === 'drop --runner, or pass --backend remote';
+    await assert.rejects(up(deps, { verb: 'up', runner: 'some-label', waitSeconds: 0 }), usage);
+    await assert.rejects(leaseForRun(deps, 'ios', { ...runCommand, runner: 'some-label' }, { willChange: false }, async () => undefined), usage);
+    await assert.rejects(doctor(deps, { verb: 'doctor', runner: 'some-label', live: true }), usage);
+    assert.deepEqual(events, []);
+    assert.equal(existsSync(deps.workspace.root), false);
   });
 
   it('leases no device when no Platform API credential works', async () => {

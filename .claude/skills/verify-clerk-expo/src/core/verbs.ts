@@ -8,7 +8,7 @@ import { STANDARD, SettingsRefused, planGroups, sourceHash, type SettingsGroup }
 import { withoutClerkKeys } from './keys.ts';
 import { openApplications } from './instances/throwaway.ts';
 import { agentDeviceFor } from './agent-device.ts';
-import { backendFor, computeBuildKey, ensureLease, leaseLine, leaseView, readBuiltApp, releaseLease, selectBackend, type LeaseOutcome } from './devices.ts';
+import { backendFor, computeBuildKey, describeChoice, ensureLease, leaseLine, leaseView, readBuiltApp, releaseLease, selectBackend, type BackendChoice, type LeaseOutcome } from './devices.ts';
 import { assertSomethingRan, collectScreenshots, contextFile, e2eOutputDir, excludedTagNames, invokeE2E, parseE2EReport, planE2E, resolveSpecs, writeRunContext } from './e2e.ts';
 import { startBroker } from './broker.ts';
 import { assertPublishable, readRecord, readStates, sealEvidence } from './evidence.ts';
@@ -24,6 +24,7 @@ import {
   VerifyFailure,
   type ActiveRunContext,
   type AttachResult,
+  type BackendKind,
   type Command,
   type DeviceBackend,
   type ProcessRef,
@@ -83,6 +84,14 @@ const platformOf = (host: HostAdapter, platform: Platform | undefined): Platform
   }
   return chosen;
 };
+
+function chooseBackend(deps: Deps, platform: Platform, command: { readonly backend?: BackendKind; readonly runner?: string }): BackendChoice {
+  const choice = selectBackend(deps.host, platform, command.backend, deps.workspace.readLease(platform));
+  if (command.runner !== undefined && choice.backend.kind === 'local') {
+    throw new VerifyFailure('USAGE', '--runner names a CI runner and the local backend has none', 'drop --runner, or pass --backend remote');
+  }
+  return choice;
+}
 
 function check(id: DoctorCheck['id'], ok: boolean, detail: string, fix: string): DoctorCheck {
   return ok ? { id, ok, detail } : { id, ok, detail, fix };
@@ -149,13 +158,20 @@ export function featureMapCheck(skillDir: string, features: readonly string[]): 
 export async function doctor(deps: Deps, command: Extract<Command, { verb: 'doctor' }>): Promise<DoctorReport> {
   const { host, workspace, runner } = deps;
   const platform = platformOf(host, command.platform);
-  const backend = selectBackend(host, platform);
+  const held = workspace.readLease(platform);
+  const choice = chooseBackend(deps, platform, command);
+  const { backend } = choice;
   const skill = workspace.skillDir;
-  const checks: DoctorCheck[] = [];
+  const checks: DoctorCheck[] = [check('backend', true, describeChoice(choice), '')];
 
   const node = process.versions.node;
   checks.push(check('node', node.startsWith('24.'), node, 'install Node 24 (nvm install 24)'));
-  const backendChecks = await backend.doctorChecks();
+  const backendChecks = await backend.doctorChecks({
+    live: command.live,
+    ...(command.runner === undefined ? {} : { runner: command.runner }),
+    worktree: workspace.worktree,
+    progress: deps.progress,
+  });
   checks.push(...backendChecks.toolchain);
 
   const pkg = readJson(join(skill, 'package.json'));
@@ -174,10 +190,15 @@ export async function doctor(deps: Deps, command: Extract<Command, { verb: 'doct
 
   checks.push(...(await deps.instances.doctorChecks({ live: command.live }, deps.progress)));
 
-  const key = await computeBuildKey(host, platform, workspace.worktree);
-  const up = ['{cli} up', ...(host.platforms.length > 1 ? [`--platform ${platform}`] : [])].join(' ');
-  const built = readBuiltApp(workspace, key);
-  checks.push(check('build', built !== null, built === null ? `no ${host.appId(platform)} build for ${key}` : `${key} at ${built.path}`, up));
+  const key = await computeBuildKey(host, platform, backend.kind, workspace.worktree);
+  const up = ['{cli} up', ...(host.platforms.length > 1 ? [`--platform ${platform}`] : []), ...(command.backend === undefined ? [] : [`--backend ${command.backend}`])].join(' ');
+  if (backend.sourceCommit === undefined) {
+    const built = readBuiltApp(workspace, key);
+    checks.push(check('build', built !== null, built === null ? `no ${host.appId(platform)} build for ${key}` : `${key} at ${built.path}`, up));
+  } else {
+    const onSession = held !== null && held.backend === 'remote' && held.installedBuild === key;
+    checks.push(check('build', onSession, onSession ? `${key} (commit ${held.builtSha?.slice(0, 12) ?? 'unknown'}) is on the session's device` : `no session holds a ${host.appId(platform)} build for ${key}`, `commit and push, then ${up}`));
+  }
 
   const noAttach = await missingAttach(runner);
   checks.push(
@@ -243,10 +264,10 @@ function targetOf(deps: Deps, outcome: RuntimeOutcome): RunContext['targets'][nu
 
 export async function up(deps: Deps, command: Extract<Command, { verb: 'up' }>): Promise<UpResult> {
   const platform = platformOf(deps.host, command.platform);
-  selectBackend(deps.host, platform);
+  chooseBackend(deps, platform, command);
   return deps.workspace.withAcquireLock(platform, async (lock) => {
     const [leased, instances] = await leaseWithInstances(deps, { willChange: false }, () =>
-      ensureLease(lock, deps.workspace, deps.host, { waitSeconds: command.waitSeconds, progress: deps.progress, instances: deps.instances, retryWith: '{cli} up --wait <seconds>' }),
+      ensureLease(lock, command.backend, deps.workspace, deps.host, { waitSeconds: command.waitSeconds, ...(command.runner === undefined ? {} : { runner: command.runner }), progress: deps.progress, instances: deps.instances, retryWith: '{cli} up --wait <seconds>' }),
     );
     const outcome = { ...leased, entry: await startRuntime(deps, leased.lease), instances };
     writeLeaseContext(deps, outcome);
@@ -319,8 +340,7 @@ export function nextStep(run: RunId, dir: EvidencePath, results: readonly SpecRe
 }
 
 export async function leaseForRun<T>(deps: Deps, platform: Platform, command: Extract<Command, { verb: 'run' }>, instances: { readonly willChange: boolean }, drive: (outcome: RuntimeOutcome) => Promise<T>): Promise<T> {
-  selectBackend(deps.host, platform);
-  const key = await computeBuildKey(deps.host, platform, deps.workspace.worktree);
+  const key = await computeBuildKey(deps.host, platform, chooseBackend(deps, platform, command).backend.kind, deps.workspace.worktree);
   const retryWith = `{cli} run ${'all' in command.selection ? '--all' : command.selection.selectors.join(' ')} --wait <seconds>`;
   const deviceWait = {
     seconds: command.waitSeconds,
@@ -332,7 +352,7 @@ export async function leaseForRun<T>(deps: Deps, platform: Platform, command: Ex
     deviceWait,
     async (lock) => {
       const [leased, up] = await leaseWithInstances(deps, instances, () =>
-        ensureLease(lock, deps.workspace, deps.host, { waitSeconds: command.waitSeconds, progress: deps.progress, instances: deps.instances, retryWith }),
+        ensureLease(lock, command.backend, deps.workspace, deps.host, { waitSeconds: command.waitSeconds, ...(command.runner === undefined ? {} : { runner: command.runner }), progress: deps.progress, instances: deps.instances, retryWith }),
       );
       const outcome: RuntimeOutcome = { ...leased, entry: await startRuntime(deps, leased.lease), instances: up };
       writeLeaseContext(deps, outcome);
@@ -446,7 +466,7 @@ async function runGroup(deps: Deps, the: GroupRun, group: SettingsGroup, index: 
       failure =
         unread === null
           ? new VerifyFailure('INSTANCE_MISCONFIGURED', `the instance no longer showed ${settings.label} when its specs ended, so what they saw is unknown`, 'rerun; if another command in this worktree changed the instance, let one finish before the other starts')
-          : new VerifyFailure('NOT_READY', `the instance's environment could not be read after the specs on ${settings.label} ended, so what they saw is unknown: ${unread}`, 'rerun');
+          : new VerifyFailure('NOT_READY', `the instance's environment could not be read after the specs on ${settings.label} ended, so what they saw is unknown: ${unread}`, 'rerun; a cloud environment needs *.clerk.accounts.dev in its allowed domains');
     }
   }
   const unreported = invoked === null || invoked.exitCode === 0 ? 'e2e reported no result for this file: it registers no test' : `e2e exited ${invoked.exitCode} and reported no result for this file: it failed to load or registers no test; e2e.log in the run directory says which`;
@@ -513,8 +533,10 @@ export async function runVerb(deps: Deps, command: Extract<Command, { verb: 'run
       try {
         if (command.video) {
           recording = await backend.startRecording(lease, dir);
-          recorderEntry = newEntryId();
-          workspace.append({ id: recorderEntry, kind: 'process', what: 'recorder', pid: recording.process.pid, startedAt: new Date(recording.process.startedAt).toISOString(), platform });
+          if (recording.process !== null) {
+            recorderEntry = newEntryId();
+            workspace.append({ id: recorderEntry, kind: 'process', what: 'recorder', pid: recording.process.pid, startedAt: new Date(recording.process.startedAt).toISOString(), platform });
+          }
         }
         const the: GroupRun = { run, dir, log: join(dir, 'e2e.log') as EvidencePath, context, command, platform };
         for (const [index, group] of groups.entries()) {
@@ -543,6 +565,7 @@ export async function runVerb(deps: Deps, command: Extract<Command, { verb: 'run
         dirty: git.dirty,
         platform,
         backend: lease.backend,
+        remote: lease.backend === 'remote' ? { provider: lease.provider, runner: lease.runner, builtSha: lease.builtSha } : null,
         device: outcome.view.device,
         build: outcome.app.key,
         results,
@@ -607,7 +630,7 @@ async function screen(deps: Deps, command: Extract<Command, { verb: 'screen' }>)
   const env = withoutClerkKeys(deps.env);
   const target = agentDeviceFor(lease);
   const agentDevice = (args: readonly string[]) =>
-    deps.runner(join(deps.workspace.skillDir, 'node_modules', '.bin', 'agent-device'), args, { env: { ...env, AGENT_DEVICE_STATE_DIR: deps.workspace.agentDeviceDir } });
+    deps.runner(join(deps.workspace.skillDir, 'node_modules', '.bin', 'agent-device'), args, { env: { ...env, AGENT_DEVICE_STATE_DIR: deps.workspace.agentDeviceDir, ...target.env } });
   const screenWait = { seconds: 10, busyFix: 'let the run in this worktree finish, then rerun {cli} screen' };
   return deps.workspace.withDevice(platform, screenWait, async () => {
     const selector = target.selector;
@@ -658,7 +681,7 @@ interface DownPlan {
   readonly staleIntents: readonly string[];
 }
 
-const leaseIdentity = (lease: Lease): string => `local:${lease.claimNonce}`;
+const leaseIdentity = (lease: Lease): string => (lease.backend === 'local' ? `local:${lease.claimNonce}` : `remote:${lease.session}`);
 
 async function planDown(deps: Deps, command: Extract<Command, { verb: 'down' }>): Promise<DownPlan> {
   const { host, workspace } = deps;

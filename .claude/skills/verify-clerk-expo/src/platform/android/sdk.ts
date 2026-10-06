@@ -105,6 +105,8 @@ function opensReadWrite(path: string): boolean {
   }
 }
 
+const KVM_RULE = `echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules && sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm`;
+
 export function localAvailability(machine: Machine = thisMachine()): Availability {
   if (machine.os !== 'darwin' && machine.os !== 'linux') return { usable: false, why: `the lane emulator runs on macOS and Linux, and this machine runs ${machine.os}` };
   if (machine.os === 'linux' && !existsSync(machine.kvm)) return { usable: false, why: `there is no ${machine.kvm}, so this machine has no hardware virtualization for the emulator` };
@@ -113,16 +115,17 @@ export function localAvailability(machine: Machine = thisMachine()): Availabilit
     return {
       usable: false,
       why: `no Android SDK with an emulator and adb (looked in ${sdkCandidates(machine).join(', ')})`,
+      fix: 'install the Android SDK emulator and platform-tools and set ANDROID_HOME to the SDK',
     };
   }
   const named = laneAvdImageDirInSdk(machine);
   const image = named ?? dirOf(systemImage(machine));
   if (!existsSync(join(root, image, 'system.img'))) {
     const wanted = image.replace(/\/$/, '').split('/').join(';');
-    return { usable: false, why: `the SDK at ${root} has no system image ${wanted}${named === null ? '' : `, which the ${AVD_NAME} AVD names`}` };
+    return { usable: false, why: `the SDK at ${root} has no system image ${wanted}${named === null ? '' : `, which the ${AVD_NAME} AVD names`}`, fix: `sdkmanager "${wanted}", or install it from Android Studio's SDK Manager` };
   }
   if (machine.os === 'linux' && !opensReadWrite(machine.kvm)) {
-    return { usable: false, why: `this user cannot open ${machine.kvm} for reading and writing, so the emulator would have no hardware acceleration` };
+    return { usable: false, why: `this user cannot open ${machine.kvm} for reading and writing, so the emulator would have no hardware acceleration`, fix: KVM_RULE };
   }
   return { usable: true, why: machine.os === 'linux' ? `this machine runs the emulator itself: ${machine.kvm} opens for reading and writing and the SDK at ${root} has the system image` : `this Mac runs the emulator itself, from the SDK at ${root}` };
 }

@@ -65,13 +65,13 @@ describe('up finishes ledgers of deleted worktrees', () => {
     const { host, instances } = fakes(finished);
     const workspace = openWorkspace({ skillDir: live, worktree: live, home });
     const options = { waitSeconds: 0, progress: () => undefined, instances, retryWith: '{cli} up --wait <seconds>' };
-    await workspace.withAcquireLock('ios', (lock) => ensureLease(lock, workspace, host, options));
+    await workspace.withAcquireLock('ios', (lock) => ensureLease(lock, undefined, workspace, host, options));
 
     assert.deepEqual(finished, [gone]);
     assert.deepEqual(openWorkspace({ skillDir: gone, worktree: gone, home }).unclosedEntries(), []);
     assert.equal(otherLedger.unclosedEntries().length, 1, 'a worktree that still exists keeps its instances');
 
-    await workspace.withAcquireLock('ios', (lock) => ensureLease(lock, workspace, host, options));
+    await workspace.withAcquireLock('ios', (lock) => ensureLease(lock, undefined, workspace, host, options));
     assert.equal(finished.length, 1, 'a finished ledger is not finished twice');
   });
 
@@ -86,7 +86,7 @@ describe('up finishes ledgers of deleted worktrees', () => {
     const failing = heldInstances({ finish: async () => assert.fail('the Platform API is down') });
     const lines: string[] = [];
     const workspace = openWorkspace({ skillDir: live, worktree: live, home });
-    await workspace.withAcquireLock('ios', (lock) => ensureLease(lock, workspace, host, { waitSeconds: 0, progress: (l) => lines.push(l), instances: failing, retryWith: '{cli} up --wait <seconds>' }));
+    await workspace.withAcquireLock('ios', (lock) => ensureLease(lock, undefined, workspace, host, { waitSeconds: 0, progress: (l) => lines.push(l), instances: failing, retryWith: '{cli} up --wait <seconds>' }));
     assert.equal(openWorkspace({ skillDir: gone, worktree: gone, home }).unclosedEntries().length, 1);
     assert.ok(lines.some((l) => l.includes('left open')));
   });
@@ -106,7 +106,7 @@ describe('up finishes ledgers of deleted worktrees', () => {
     const { host, instances } = fakes(finished);
     const workspace = openWorkspace({ skillDir: live, worktree: live, home });
     await workspace.withAcquireLock('ios', (lock) =>
-      ensureLease(lock, workspace, host, { waitSeconds: 0, progress: () => undefined, instances, retryWith: '{cli} up --wait <seconds>' }),
+      ensureLease(lock, undefined, workspace, host, { waitSeconds: 0, progress: () => undefined, instances, retryWith: '{cli} up --wait <seconds>' }),
     );
     assert.deepEqual(finished, [gone]);
     assert.deepEqual(openWorkspace({ skillDir, worktree: gone, home }).unclosedEntries(), []);

@@ -326,6 +326,7 @@ export function localAndroidBackend(options: LocalAndroidOptions = {}): DeviceBa
     },
 
     async install(lease, app) {
+      if (app.path === null) throw new VerifyFailure('BUILD_FAILED', `build ${app.key} was made on another machine, so there is no app here to install on ${lease.deviceName}`, '{cli} down, then {cli} up');
       const result = await adb(lease.deviceId, installArgs(app.path));
       if (result.code !== 0 || !/Success/.test(result.stdout)) {
         throw new VerifyFailure('NOT_READY', `adb install on ${lease.deviceName} failed: ${(result.stderr || result.stdout).trim()}`, '{cli} down, then {cli} up');
