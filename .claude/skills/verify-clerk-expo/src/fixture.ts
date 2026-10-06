@@ -1,7 +1,9 @@
 import { spawn } from 'node:child_process';
-import { cpSync, existsSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { cpSync, existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { run } from './core/exec.ts';
 import { VerifyFailure, type Platform } from './core/types.ts';
 import { resolveJavaHome, sdkRoot } from './platform/android/sdk.ts';
 
@@ -10,14 +12,34 @@ export const IOS_PRODUCT = 'ClerkExpoNativeBuildFixture';
 export const WORKTREE = fileURLToPath(new URL('../../../../', import.meta.url));
 export const FIXTURE = join(WORKTREE, 'integration', 'templates', 'expo-native');
 
-const EXPO_PACKAGES = [
-  'expo-auth-session',
-  'expo-constants',
-  'expo-crypto',
-  'expo-dev-client',
-  'expo-secure-store',
-  'expo-web-browser',
-];
+export type BuildProduct = 'dev-client' | 'standalone';
+
+interface Recipe {
+  readonly configuration: 'Debug' | 'Release';
+  readonly gradle: readonly string[];
+  readonly apk: string;
+  readonly expoPackages: readonly string[];
+  readonly label: string;
+}
+
+const EXPO_PACKAGES = ['expo-auth-session', 'expo-constants', 'expo-crypto', 'expo-secure-store', 'expo-web-browser'];
+
+const RECIPES: Readonly<Record<BuildProduct, Recipe>> = {
+  'dev-client': {
+    configuration: 'Debug',
+    gradle: ['assembleDebug'],
+    apk: join('debug', 'app-debug.apk'),
+    expoPackages: [...EXPO_PACKAGES, 'expo-dev-client'],
+    label: 'dev client',
+  },
+  standalone: {
+    configuration: 'Release',
+    gradle: [':app:createBundleReleaseJsAndAssets', '--rerun', 'assembleRelease'],
+    apk: join('release', 'app-release.apk'),
+    expoPackages: EXPO_PACKAGES,
+    label: 'JS embedded',
+  },
+};
 
 const SHARED_NATIVE_INPUTS = [
   'packages/expo/app.plugin.js',
@@ -42,14 +64,43 @@ const PLATFORM_NATIVE_INPUTS: Readonly<Record<Platform, readonly string[]>> = {
   android: ['packages/expo/android', 'packages/expo-google-signin/android', 'packages/expo-biometrics/android'],
 };
 
+const BUNDLE_INPUTS = [
+  '.npmrc',
+  'package.json',
+  'pnpm-lock.yaml',
+  'pnpm-workspace.yaml',
+  'tsconfig.json',
+  'turbo.json',
+  'packages/clerk-js',
+  'packages/expo',
+  'packages/expo-biometrics',
+  'packages/expo-google-signin',
+  'packages/react',
+  'packages/shared',
+  'integration/templates/expo-native',
+] as const;
+
 export function nativeInputs(platform: Platform): readonly string[] {
   return [...PLATFORM_NATIVE_INPUTS[platform], ...SHARED_NATIVE_INPUTS];
 }
 
-export function artifact(platform: Platform): string {
+export function buildInputs(platform: Platform, product: BuildProduct): readonly string[] {
+  return product === 'standalone' ? [...nativeInputs(platform), ...BUNDLE_INPUTS] : nativeInputs(platform);
+}
+
+export function artifact(platform: Platform, product: BuildProduct, fixture: string = FIXTURE): string {
+  const recipe = RECIPES[product];
   return platform === 'ios'
-    ? join(FIXTURE, 'ios', 'build', 'Build', 'Products', 'Debug-iphonesimulator', `${IOS_PRODUCT}.app`)
-    : join(FIXTURE, 'android', 'app', 'build', 'outputs', 'apk', 'debug', 'app-debug.apk');
+    ? join(
+        fixture,
+        'ios',
+        'build',
+        'Build',
+        'Products',
+        `${recipe.configuration}-iphonesimulator`,
+        `${IOS_PRODUCT}.app`,
+      )
+    : join(fixture, 'android', 'app', 'build', 'outputs', 'apk', recipe.apk);
 }
 
 function step(
@@ -97,14 +148,35 @@ export async function mustStep(
 
 export interface FixtureBuild {
   readonly platform: Platform;
+  readonly product: BuildProduct;
+  readonly nativeKey: string;
   readonly buildPackages: boolean;
   readonly progress: (line: string) => void;
 }
 
-async function generateNativeProject(build: FixtureBuild): Promise<void> {
+export interface FixtureSite {
+  readonly worktree: string;
+  readonly fixture: string;
+  readonly must: typeof mustStep;
+}
+
+const THIS_CHECKOUT: FixtureSite = { worktree: WORKTREE, fixture: FIXTURE, must: mustStep };
+
+const nativeProjectMarker = (site: FixtureSite, platform: Platform) =>
+  join(site.fixture, platform, '.verify-native-project');
+
+export function nativeProjectIsCurrent(site: FixtureSite, platform: Platform, wanted: string): boolean {
+  const marker = nativeProjectMarker(site, platform);
+  return (
+    existsSync(join(site.fixture, 'node_modules')) && existsSync(marker) && readFileSync(marker, 'utf8') === wanted
+  );
+}
+
+async function generateNativeProject(site: FixtureSite, build: FixtureBuild, wanted: string): Promise<void> {
   const { platform, progress } = build;
-  cpSync(join(FIXTURE, 'package.sdk-57.json'), join(FIXTURE, 'package.json'));
-  await mustStep(
+  rmSync(nativeProjectMarker(site, platform), { force: true });
+  cpSync(join(site.fixture, 'package.sdk-57.json'), join(site.fixture, 'package.json'));
+  await site.must(
     'pnpm add the workspace packages',
     'pnpm',
     [
@@ -113,21 +185,23 @@ async function generateNativeProject(build: FixtureBuild): Promise<void> {
       'link:../../../packages/expo-google-signin',
       'link:../../../packages/expo-biometrics',
     ],
-    FIXTURE,
+    site.fixture,
   );
-  await mustStep('expo install', 'pnpm', ['expo', 'install', ...EXPO_PACKAGES], FIXTURE);
+  await site.must('expo install', 'pnpm', ['expo', 'install', ...RECIPES[build.product].expoPackages], site.fixture);
   progress(`build   expo prebuild --clean --platform ${platform}`);
-  await mustStep('expo prebuild', 'pnpm', ['expo', 'prebuild', '--clean', '--platform', platform], FIXTURE);
+  await site.must('expo prebuild', 'pnpm', ['expo', 'prebuild', '--clean', '--platform', platform], site.fixture);
+  writeFileSync(nativeProjectMarker(site, platform), wanted);
 }
 
-export async function buildFixture(build: FixtureBuild): Promise<string> {
-  const { platform, progress } = build;
-  if (!existsSync(join(WORKTREE, 'node_modules'))) {
-    throw new VerifyFailure('NOT_READY', 'the monorepo has no node_modules', `cd ${WORKTREE} && pnpm install`);
+export async function buildFixture(build: FixtureBuild, site: FixtureSite = THIS_CHECKOUT): Promise<string> {
+  const { platform, product, progress } = build;
+  const recipe = RECIPES[product];
+  if (!existsSync(join(site.worktree, 'node_modules'))) {
+    throw new VerifyFailure('NOT_READY', 'the monorepo has no node_modules', `cd ${site.worktree} && pnpm install`);
   }
   if (build.buildPackages) {
     progress('build   turbo build @clerk/expo, @clerk/expo-biometrics, @clerk/expo-google-signin');
-    await mustStep(
+    await site.must(
       'turbo build',
       'pnpm',
       [
@@ -137,13 +211,18 @@ export async function buildFixture(build: FixtureBuild): Promise<string> {
         '--filter=@clerk/expo-biometrics...',
         '--filter=@clerk/expo-google-signin...',
       ],
-      WORKTREE,
+      site.worktree,
     );
   }
-  await generateNativeProject(build);
+  const wanted = `${product} ${build.nativeKey}`;
+  if (nativeProjectIsCurrent(site, platform, wanted)) {
+    progress(`build   the ${platform} project was generated from these native inputs, so expo prebuild is skipped`);
+  } else {
+    await generateNativeProject(site, build, wanted);
+  }
   if (platform === 'ios') {
-    progress('build   xcodebuild Debug (dev client)');
-    await mustStep(
+    progress(`build   xcodebuild ${recipe.configuration} (${recipe.label})`);
+    await site.must(
       'xcodebuild',
       'xcodebuild',
       [
@@ -154,23 +233,58 @@ export async function buildFixture(build: FixtureBuild): Promise<string> {
         '-scheme',
         IOS_PRODUCT,
         '-configuration',
-        'Debug',
+        recipe.configuration,
         '-sdk',
         'iphonesimulator',
         '-derivedDataPath',
-        join(FIXTURE, 'ios', 'build'),
+        join(site.fixture, 'ios', 'build'),
         'CODE_SIGN_IDENTITY=-',
       ],
-      FIXTURE,
+      site.fixture,
     );
   } else {
     const java = resolveJavaHome();
     if (!java.ok) throw new VerifyFailure('NOT_READY', java.detail, java.fix);
-    progress('build   gradlew assembleDebug (dev client)');
-    await mustStep('gradlew assembleDebug', './gradlew', ['assembleDebug', '-q'], join(FIXTURE, 'android'), {
-      JAVA_HOME: java.home,
-      ANDROID_HOME: sdkRoot(),
-    });
+    progress(`build   gradlew ${recipe.gradle.at(-1)} (${recipe.label})`);
+    await site.must(
+      `gradlew ${recipe.gradle.at(-1)}`,
+      './gradlew',
+      [...recipe.gradle, '-q'],
+      join(site.fixture, 'android'),
+      {
+        JAVA_HOME: java.home,
+        ANDROID_HOME: sdkRoot(),
+      },
+    );
   }
-  return artifact(platform);
+  return artifact(platform, product, site.fixture);
+}
+
+async function committedNativeKey(platform: Platform): Promise<string> {
+  const listed = await run('git', ['ls-tree', '-r', 'HEAD', '--', ...nativeInputs(platform)], { cwd: WORKTREE });
+  if (listed.code !== 0) throw new VerifyFailure('NOT_READY', `git ls-tree failed: ${listed.stderr.trim()}`, 'retry');
+  return createHash('sha256').update(listed.stdout).digest('hex').slice(0, 12);
+}
+
+if (import.meta.main) {
+  const platform = process.argv[2];
+  if (platform !== 'ios' && platform !== 'android') {
+    console.error('usage: fixture.ts ios|android');
+    process.exit(2);
+  }
+  try {
+    console.log('build   pnpm install --frozen-lockfile');
+    await mustStep('pnpm install', 'pnpm', ['install', '--frozen-lockfile'], WORKTREE);
+    const built = await buildFixture({
+      platform,
+      product: 'standalone',
+      nativeKey: await committedNativeKey(platform),
+      buildPackages: true,
+      progress: line => console.log(line),
+    });
+    console.log(`build   ${built}`);
+  } catch (error) {
+    console.error((error as Error).message);
+    process.exit(1);
+  }
 }

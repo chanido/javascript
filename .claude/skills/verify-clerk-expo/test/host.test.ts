@@ -50,13 +50,6 @@ describe('nativeInputs', () => {
 });
 
 describe('the clerk-expo host', () => {
-  it('runs each platform on a device of this machine only', () => {
-    assert.deepEqual(
-      host.backends.map(b => `${b.platform} ${b.kind}`),
-      ['ios local', 'android local'],
-    );
-  });
-
   it('says what a machine without the device would need', () => {
     const empty = mkdtempSync(join(tmpdir(), 'verify-expo-host-'));
     const elsewhere = {
@@ -67,7 +60,7 @@ describe('the clerk-expo host', () => {
       ],
     };
     assert.throws(
-      () => selectBackend(elsewhere, 'ios'),
+      () => selectBackend(elsewhere, 'ios', undefined, null),
       (error: VerifyFailure) =>
         error.code === 'UNSUPPORTED' &&
         /^no ios backend runs on this machine \(local: the iOS simulator needs macOS and this machine runs linux/.test(
@@ -76,7 +69,7 @@ describe('the clerk-expo host', () => {
         error.fix === 'run on a Mac with Xcode',
     );
     assert.throws(
-      () => selectBackend(elsewhere, 'android'),
+      () => selectBackend(elsewhere, 'android', undefined, null),
       (error: VerifyFailure) =>
         error.code === 'UNSUPPORTED' &&
         /^no android backend runs on this machine \(local: there is no .*kvm/.test(error.message),

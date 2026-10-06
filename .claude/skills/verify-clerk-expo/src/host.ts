@@ -14,9 +14,11 @@ import { createRequire } from 'node:module';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isRunning, run, sleep } from './core/exec.ts';
+import { remoteBackend } from './core/remote/backend.ts';
 import {
   LOCAL_POOL,
   VerifyFailure,
+  type BackendKind,
   type HostAdapter,
   type HostEntry,
   type Platform,
@@ -24,7 +26,16 @@ import {
   type ScratchPath,
 } from './core/types.ts';
 import { takeSlotLock } from './core/workspace.ts';
-import { APP_ID, FIXTURE, IOS_PRODUCT, WORKTREE, buildFixture, mustStep, nativeInputs } from './fixture.ts';
+import {
+  APP_ID,
+  FIXTURE,
+  IOS_PRODUCT,
+  WORKTREE,
+  buildFixture,
+  buildInputs,
+  mustStep,
+  type BuildProduct,
+} from './fixture.ts';
 import {
   confirmServed,
   fingerprint,
@@ -42,13 +53,15 @@ import {
   type GateMemory,
 } from './freshness.ts';
 import { localAndroidBackend } from './platform/android/local.ts';
-import { sdkTool } from './platform/android/sdk.ts';
+import { AVD_NAME, sdkTool } from './platform/android/sdk.ts';
 import { localIosBackend } from './platform/ios/local.ts';
 
 const ANDROID_ACTIVITY = '.MainActivity';
 const DEV_CLIENT_SCHEME = 'exp+clerk-expo-native-build-fixture';
 const ANDROID_DEV_MENU_PREFS = `<?xml version='1.0' encoding='utf-8' standalone='yes' ?><map><boolean name="isOnboardingFinished" value="true" /><boolean name="showsAtLaunch" value="false" /><boolean name="showFab" value="false" /></map>`;
 
+const SKILL_DIR = fileURLToPath(new URL('../', import.meta.url));
+const GITHUB_REPO = 'clerk/javascript';
 const EXPO_PACKAGE = join(WORKTREE, 'packages', 'expo');
 const RUNTIME_DIR = fileURLToPath(new URL('../.verify/runtime/', import.meta.url));
 
@@ -481,6 +494,10 @@ async function ensureServed(
   return current;
 }
 
+export function productFor(backend: BackendKind): BuildProduct {
+  return backend === 'remote' ? 'standalone' : 'dev-client';
+}
+
 function keepBuild(platform: Platform, built: string, into: string): string {
   mkdirSync(into, { recursive: true });
   const path = join(into, platform === 'ios' ? `${IOS_PRODUCT}.app` : 'app-debug.apk');
@@ -489,20 +506,39 @@ function keepBuild(platform: Platform, built: string, into: string): string {
   return path;
 }
 
+export const REMOTE_DEVICE: Readonly<Record<Platform, { readonly runner: string; readonly device: string }>> = {
+  ios: { runner: 'blacksmith-6vcpu-macos-26', device: 'iPhone 17 Pro' },
+  android: { runner: 'blacksmith-8vcpu-ubuntu-2204', device: AVD_NAME },
+};
+
+const remote = (platform: Platform) =>
+  remoteBackend({
+    platform,
+    repo: GITHUB_REPO,
+    workflow: 'verify-remote.yml',
+    sessionsDir: join(SKILL_DIR, '.verify', 'remote'),
+    ...REMOTE_DEVICE[platform],
+    planRunner: 'blacksmith-8vcpu-ubuntu-2204',
+    plumbingRunner: 'ubuntu-latest',
+    idleMinutes: 15,
+    capMinutes: 60,
+    requirement: `a pushed branch and access to GitHub Actions on ${GITHUB_REPO}`,
+  });
+
 export const host: HostAdapter<(typeof SCREENS)[number]> = {
   repo: 'clerk-expo',
   cli: '.claude/skills/verify-clerk-expo/bin/control-clerk-expo',
   platforms: ['ios', 'android'],
   screens: SCREENS,
-  githubRepo: 'clerk/javascript',
+  githubRepo: GITHUB_REPO,
   appId: () => APP_ID,
-  buildInputs: nativeInputs,
+  buildInputs: (platform, backend) => buildInputs(platform, productFor(backend)),
   async build(platform, key, into, progress) {
     if (process.platform !== 'darwin')
       throw new VerifyFailure(
         'UNSUPPORTED',
         `the expo-native fixture is built locally on macOS only, and this machine runs ${process.platform}`,
-        'run {cli} up on a Mac with Xcode and Android Studio',
+        `rerun with --backend remote, which builds ${platform} on a CI runner`,
       );
     const path = await withFixtureLock(progress, async () => {
       const watching = readRuntime('watch') !== null;
@@ -511,6 +547,8 @@ export const host: HostAdapter<(typeof SCREENS)[number]> = {
       else stopRuntime();
       const built = await buildFixture({
         platform,
+        product: 'dev-client',
+        nativeKey: key,
         buildPackages: !watching,
         progress,
       });
@@ -519,6 +557,7 @@ export const host: HostAdapter<(typeof SCREENS)[number]> = {
     return { platform, key, appId: APP_ID, path: path as ScratchPath, source: 'local' };
   },
   async runtime(lease, progress) {
+    if (lease.backend === 'remote') return { entry: { kind: 'binary' }, processes: [] };
     const port = metroPort(lease);
     return withCleanup(
       stopRuntime,
@@ -574,5 +613,5 @@ export const host: HostAdapter<(typeof SCREENS)[number]> = {
     'token-cache-persistence',
     'native-js-sync',
   ],
-  backends: [localIosBackend(), localAndroidBackend()],
+  backends: [localIosBackend(), localAndroidBackend(), remote('ios'), remote('android')],
 };
