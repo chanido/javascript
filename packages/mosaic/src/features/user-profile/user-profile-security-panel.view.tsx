@@ -8,7 +8,6 @@ import type {
   UserProfileDevice,
 } from './user-profile-active-devices-section.view';
 import { UserProfileActiveDevicesSectionView } from './user-profile-active-devices-section.view';
-import type { UserProfileMfaSlot } from './user-profile-mfa-section/user-profile-mfa-section';
 import type {
   UserProfileMfaAddableMethod,
   UserProfileMfaMethod,
@@ -22,7 +21,7 @@ export type { UserProfileDevice, UserProfileMfaAddableMethod, UserProfileMfaMeth
 
 export interface UserProfileSecurityPanelViewProps extends Omit<UserProfileActiveDevicesSectionViewProps, 'devices'> {
   passwordSlot?: UserProfilePasswordSlot | null;
-  mfaSlot?: UserProfileMfaSlot | null;
+  mfaSlot?: ReactNode;
   passkeys?: UserProfilePasskey[];
   passkeysVisible?: boolean;
   mfaMethods?: UserProfileMfaMethod[];
@@ -64,8 +63,21 @@ export function UserProfileSecurityPanelView({
 }: UserProfileSecurityPanelViewProps): ReactElement {
   const showPassword = Boolean(passwordSlot);
   const showPasskeys = passkeys !== undefined && passkeysVisible;
-  const hasAuthentication =
-    showPassword || showPasskeys || (mfaSlot !== undefined ? Boolean(mfaSlot) : mfaMethods !== undefined);
+  const selectedMfaNode =
+    mfaSlot !== undefined ? (
+      mfaSlot
+    ) : mfaMethods !== undefined ? (
+      <UserProfileMfaSectionView
+        methods={mfaMethods}
+        addableMethods={addableMfaMethods}
+        addControl={mfaAddControl}
+        onAdd={onAddMfaMethod}
+        onRegenerateBackupCodes={onRegenerateBackupCodes}
+        onRemove={onRemoveMfaMethod}
+        onSetDefault={onSetDefaultMfaMethod}
+      />
+    ) : null;
+  const hasAuthentication = showPassword || showPasskeys || Boolean(selectedMfaNode);
 
   return (
     <Panel.Root render={<div {...themeProps('user-profile-security-panel')} />}>
@@ -83,18 +95,7 @@ export function UserProfileSecurityPanelView({
                 onRemove={onRemovePasskey}
               />
             ) : null}
-            {mfaSlot?.content}
-            {mfaSlot === undefined && mfaMethods !== undefined ? (
-              <UserProfileMfaSectionView
-                methods={mfaMethods}
-                addableMethods={addableMfaMethods}
-                addControl={mfaAddControl}
-                onAdd={onAddMfaMethod}
-                onRegenerateBackupCodes={onRegenerateBackupCodes}
-                onRemove={onRemoveMfaMethod}
-                onSetDefault={onSetDefaultMfaMethod}
-              />
-            ) : null}
+            {selectedMfaNode}
           </Section.Root>
         ) : null}
         {devices ? (
