@@ -5,8 +5,8 @@ import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { MosaicProvider } from '../../../mosaic-provider';
-import type { UserProfileDevice } from '../user-profile-active-devices.types';
-import { UserProfileActiveDevicesSectionView } from '../user-profile-active-devices-section.view';
+import type { UserProfileDevice } from '../user-profile-active-devices-section/user-profile-active-devices.types';
+import { UserProfileActiveDevicesSectionView } from '../user-profile-active-devices-section/user-profile-active-devices-section.view';
 
 const current: UserProfileDevice = {
   id: 'current',

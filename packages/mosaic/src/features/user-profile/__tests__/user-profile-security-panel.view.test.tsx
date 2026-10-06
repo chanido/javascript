@@ -5,8 +5,8 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { useDestructiveController } from '../../../blocks/destructive/destructive.controller';
 import { MosaicProvider } from '../../../mosaic-provider';
-import type { UserProfileDevice } from '../user-profile-active-devices-section.view';
-import { UserProfileActiveDevicesSectionView } from '../user-profile-active-devices-section.view';
+import type { UserProfileDevice } from '../user-profile-active-devices-section/user-profile-active-devices-section.view';
+import { UserProfileActiveDevicesSectionView } from '../user-profile-active-devices-section/user-profile-active-devices-section.view';
 import { UserProfileDangerSectionView } from '../user-profile-danger-section/user-profile-danger-section.view';
 import type { UserProfileSecurityPanelViewProps } from '../user-profile-security-panel.view';
 import { UserProfileSecurityPanelView } from '../user-profile-security-panel.view';
